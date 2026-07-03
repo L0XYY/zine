@@ -1,4 +1,4 @@
-import type { BadgeKind, Category, Role } from "./types";
+import type { BadgeKind, Category, Role, User } from "./types";
 
 // --- Brand -----------------------------------------------------------------
 
@@ -105,6 +105,29 @@ export const ADMIN_ROLES: Role[] = ["OWNER", "ADMIN", "MODERATOR"];
 
 export function isAdminRole(role: Role | undefined | null): boolean {
   return !!role && ADMIN_ROLES.includes(role);
+}
+
+// --- Founder / Owner --------------------------------------------------------
+// The single account that owns the platform. Whoever holds this username is
+// always resolved as OWNER with the founder badges — so the role can never be
+// lost or accidentally claimed by another sign-up (the username is reserved).
+export const OWNER_USERNAME = "loxy";
+
+const FOUNDER_BADGES: BadgeKind[] = ["FOUNDER", "STAFF", "VERIFIED", "EARLY"];
+
+/** Force owner role + founder badges on the reserved founder account. */
+export function elevateFounder(user: User): User {
+  if (user.username.toLowerCase() !== OWNER_USERNAME) return user;
+  return {
+    ...user,
+    role: "OWNER",
+    verified: true,
+    badges: Array.from(new Set([...user.badges, ...FOUNDER_BADGES])),
+  };
+}
+
+export function isOwnerUsername(username: string): boolean {
+  return username.toLowerCase() === OWNER_USERNAME;
 }
 
 export const ROLE_LABEL: Record<Role, string> = {

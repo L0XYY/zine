@@ -1,35 +1,31 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Heart, Play, Repeat2 } from "lucide-react";
+import { Play } from "lucide-react";
 
+// Decorative hero previews — abstract category cards, no fabricated creators
+// or engagement numbers.
 const CARDS = [
   {
     seed: "hero-a",
-    user: "pixelpanda",
-    title: "1v5 clutch",
-    likes: "412K",
-    loops: "8.9M",
+    label: "Gaming",
+    title: "clutch play",
     accent: "from-zine-green/40",
     rotate: -8,
     delay: 0,
   },
   {
     seed: "hero-b",
-    user: "nova_edits",
+    label: "Edits",
     title: "velocity edit",
-    likes: "244K",
-    loops: "5.6M",
     accent: "from-zine-mint/40",
     rotate: 0,
     delay: 0.4,
   },
   {
     seed: "hero-c",
-    user: "robloxrae",
-    title: "Tower in 6s",
-    likes: "301K",
-    loops: "6.1M",
+    label: "Roblox",
+    title: "obby run",
     accent: "from-zine-teal/40",
     rotate: 8,
     delay: 0.8,
@@ -85,19 +81,13 @@ export function AnimatedCards() {
               <div className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/40 backdrop-blur">
                 <Play className="h-3.5 w-3.5 translate-x-0.5 text-white" />
               </div>
-              <div className="absolute inset-x-0 bottom-0 space-y-1 p-2.5">
-                <p className="truncate text-xs font-semibold text-white">
-                  @{card.user}
+              <div className="absolute inset-x-0 bottom-0 space-y-1.5 p-2.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
+                  {card.label}
+                </span>
+                <p className="truncate text-[11px] text-slate-200">
+                  {card.title}
                 </p>
-                <p className="truncate text-[11px] text-slate-300">{card.title}</p>
-                <div className="flex items-center gap-2 text-[10px] text-slate-300">
-                  <span className="flex items-center gap-0.5">
-                    <Heart className="h-2.5 w-2.5" /> {card.likes}
-                  </span>
-                  <span className="flex items-center gap-0.5">
-                    <Repeat2 className="h-2.5 w-2.5" /> {card.loops}
-                  </span>
-                </div>
               </div>
             </div>
           </div>

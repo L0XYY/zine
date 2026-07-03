@@ -10,12 +10,6 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/ErrorState";
 import { slugify } from "@/lib/utils";
 
-const DEMO_ACCOUNTS = [
-  { username: "zinehq", label: "Owner", sub: "full admin" },
-  { username: "zinemod", label: "Moderator", sub: "mod tools" },
-  { username: "pixelpanda", label: "Creator", sub: "partner" },
-];
-
 function Field({
   icon,
   ...props
@@ -38,7 +32,7 @@ function Field({
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
   const toast = useToast();
-  const { login, loginAs, signup } = useAuth();
+  const { login, signup } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,16 +56,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       return;
     }
     toast(mode === "login" ? "Welcome back 👋" : "Welcome to Zine ✨", "success");
-    router.push("/feed");
-  };
-
-  const quickLogin = async (uname: string) => {
-    setError(null);
-    setBusy(true);
-    const result = await loginAs(uname);
-    setBusy(false);
-    if (result.error) return setError(result.error);
-    toast(`Signed in as @${uname}`, "success");
     router.push("/feed");
   };
 
@@ -126,30 +110,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           {mode === "login" ? "Log in" : "Create account"}
         </Button>
       </form>
-
-      {/* Demo quick-login */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center gap-3 text-xs text-slate-500">
-          <span className="h-px flex-1 bg-white/10" />
-          try a demo account
-          <span className="h-px flex-1 bg-white/10" />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {DEMO_ACCOUNTS.map((a) => (
-            <button
-              key={a.username}
-              onClick={() => quickLogin(a.username)}
-              disabled={busy}
-              className="ring-focus glass glass-hover rounded-xl px-2 py-2.5 text-center disabled:opacity-50"
-            >
-              <span className="block text-sm font-semibold text-white">
-                {a.label}
-              </span>
-              <span className="block text-[11px] text-slate-400">{a.sub}</span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       <p className="mt-6 text-center text-sm text-slate-400">
         {mode === "login" ? (

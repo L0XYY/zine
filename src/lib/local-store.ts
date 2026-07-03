@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { users as mockUsers, videos as mockVideos } from "./mock-data";
+import { elevateFounder } from "./constants";
 import type { User, Video } from "./types";
 
 const USERS_KEY = "zine.users";
@@ -47,11 +48,16 @@ export function saveLocalUser(user: User) {
   write(USERS_KEY, locals);
 }
 
-/** All users: locally created ones first, then the seed data. */
+/** All users: locally created ones first, then seed data. Deduped by username
+ *  (a local account shadows the seed) and with the founder always elevated. */
 export function allUsers(): User[] {
   const locals = loadLocalUsers();
-  const localIds = new Set(locals.map((u) => u.id));
-  return [...locals, ...mockUsers.filter((u) => !localIds.has(u.id))];
+  const seen = new Set(locals.map((u) => u.username.toLowerCase()));
+  const merged = [
+    ...locals,
+    ...mockUsers.filter((u) => !seen.has(u.username.toLowerCase())),
+  ];
+  return merged.map(elevateFounder);
 }
 
 export function findUserByUsername(username: string): User | undefined {

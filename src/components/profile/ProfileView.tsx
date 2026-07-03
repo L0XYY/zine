@@ -100,28 +100,17 @@ export function ProfileView({ username }: { username: string }) {
       </div>
 
       {/* Header */}
-      <div className="-mt-12 px-2 sm:-mt-14 sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-end gap-4">
-            <Avatar
-              src={resolved.avatarUrl}
-              name={resolved.displayName}
-              size="xl"
-              ring
-              className="shadow-glass"
-            />
-            <div className="pb-1">
-              <div className="flex items-center gap-2">
-                <h1 className="font-display text-2xl font-bold tracking-tight text-white">
-                  {resolved.displayName}
-                </h1>
-                {resolved.verified && <VerifiedCheck className="h-5 w-5" />}
-              </div>
-              <p className="text-sm text-slate-400">@{resolved.username}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
+      <div className="px-2 sm:px-6">
+        {/* Only the avatar overlaps the banner; the action button aligns to it */}
+        <div className="flex items-end justify-between">
+          <Avatar
+            src={resolved.avatarUrl}
+            name={resolved.displayName}
+            size="xl"
+            ring
+            className="-mt-12 shadow-glass sm:-mt-14"
+          />
+          <div className="flex items-center gap-2 pb-1">
             {isOwn ? (
               <Button href="/settings" variant="glass" size="sm">
                 <SettingsIcon className="h-4 w-4" /> Edit profile
@@ -134,6 +123,17 @@ export function ProfileView({ username }: { username: string }) {
               />
             )}
           </div>
+        </div>
+
+        {/* Name + handle sit clearly below the banner */}
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-white">
+              {resolved.displayName}
+            </h1>
+            {resolved.verified && <VerifiedCheck className="h-5 w-5" />}
+          </div>
+          <p className="text-sm text-slate-400">@{resolved.username}</p>
         </div>
 
         {/* Badges */}

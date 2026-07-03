@@ -28,6 +28,11 @@ export function RightPanel() {
           </Link>
         </div>
         <ol className="space-y-1">
+          {trending.length === 0 && (
+            <li className="px-2 py-6 text-center text-xs text-slate-500">
+              No loops yet — be the first to post a Zine.
+            </li>
+          )}
           {trending.map((v, i) => (
             <li key={v.id}>
               <Link

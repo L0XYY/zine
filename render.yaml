@@ -1,0 +1,18 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploys Zine as a Node web service (Next.js needs a server: API routes,
+# middleware, and SSR profile pages rule out static hosting).
+services:
+  - type: web
+    name: zine
+    runtime: node
+    plan: free # upgrade to "starter" ($7/mo) to avoid free-tier spin-down
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      # NEXT_PUBLIC_* is inlined at build time, so it must be set here.
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://zine.video

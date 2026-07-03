@@ -73,8 +73,8 @@ export function Hero() {
             </div>
             <div className="h-8 w-px bg-white/10" />
             <div>
-              <span className="font-display text-xl font-bold text-white">1.2M+</span>{" "}
-              Ziners
+              <span className="font-display text-xl font-bold text-white">6</span>{" "}
+              categories
             </div>
             <div className="h-8 w-px bg-white/10" />
             <div>

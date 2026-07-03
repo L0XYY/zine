@@ -29,24 +29,15 @@ export function AuthShell({
               something.
             </p>
             <p className="mt-6 text-slate-300">
-              Join over a million Ziners turning quick ideas into loops the whole
-              world rewatches.
+              Turn quick ideas into 6-second loops the whole world rewatches.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 text-sm text-slate-400">
-            <div className="flex -space-x-2">
-              {["a", "b", "c", "d"].map((s) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={s}
-                  src={`https://i.pravatar.cc/80?u=auth-${s}`}
-                  alt=""
-                  className="h-8 w-8 rounded-full border-2 border-ink-950 object-cover"
-                />
-              ))}
-            </div>
-            <span>Loved by creators worldwide</span>
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <span className="inline-flex h-8 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3">
+              <span className="h-2 w-2 rounded-full bg-zine-green" />
+              6-second loops · 6 categories
+            </span>
           </div>
         </div>
       </div>
