@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-white/5;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-ink-950 text-slate-100 antialiased;
+    background-image:
+      radial-gradient(50% 40% at 15% 0%, rgba(45, 212, 191, 0.12), transparent 70%),
+      radial-gradient(50% 40% at 85% 10%, rgba(52, 211, 153, 0.1), transparent 70%),
+      radial-gradient(60% 50% at 50% 100%, rgba(34, 192, 122, 0.08), transparent 70%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    @apply bg-zine-teal/30 text-white;
+  }
+}
+
+@layer components {
+  /* Frosted glass surface */
+  .glass {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+  }
+
+  .glass-strong {
+    @apply border border-white/10 bg-ink-800/70 backdrop-blur-2xl;
+  }
+
+  .glass-hover {
+    @apply transition-colors duration-200 hover:border-white/20 hover:bg-white/[0.07];
+  }
+
+  /* Gradient brand text */
+  .text-gradient {
+    @apply bg-zine-gradient bg-clip-text text-transparent;
+  }
+
+  /* Primary gradient button */
+  .btn-gradient {
+    @apply bg-zine-gradient text-white shadow-glow transition-transform duration-200 hover:brightness-110 active:scale-[0.98];
+  }
+
+  .ring-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zine-teal/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950;
+  }
+
+  /* Loading shimmer block */
+  .skeleton {
+    @apply relative overflow-hidden bg-white/5;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Snap feed */
+  .snap-y-mandatory {
+    scroll-snap-type: y mandatory;
+  }
+  .snap-start {
+    scroll-snap-align: start;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Thin themed scrollbar for panels */
+.themed-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.themed-scroll::-webkit-scrollbar-thumb {
+  background: rgba(45, 212, 191, 0.3);
+  border-radius: 999px;
+}
+.themed-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

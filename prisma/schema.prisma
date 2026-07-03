@@ -1,0 +1,217 @@
+// ---------------------------------------------------------------------------
+// Zine — Prisma schema
+// Short videos that loop different.
+//
+// This schema is designed to sit on top of Supabase Postgres. The `User.id`
+// is a UUID that mirrors the Supabase `auth.users.id` so the two stay in sync.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- Enums -----------------------------------------------------------------
+
+enum Role {
+  OWNER
+  ADMIN
+  MODERATOR
+  PARTNER
+  VERIFIED
+  USER
+}
+
+enum Category {
+  GAMING
+  ROBLOX
+  MINECRAFT
+  MEMES
+  EDITS
+  IRL
+  CHALLENGES
+}
+
+enum BadgeKind {
+  VERIFIED
+  PARTNER
+  FOUNDER
+  STAFF
+  EARLY
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  NUDITY
+  VIOLENCE
+  HATE
+  ILLEGAL
+  OTHER
+}
+
+// --- Core models -----------------------------------------------------------
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  username    String   @unique
+  displayName String
+  avatarUrl   String?
+  bannerUrl   String?
+  bio         String?  @db.VarChar(280)
+  role        Role     @default(USER)
+  verified    Boolean  @default(false)
+  partnered   Boolean  @default(false)
+  banned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  videos    Video[]
+  likes     Like[]
+  comments  Comment[]
+  badges    UserBadge[]
+  reports   Report[]     @relation("Reporter")
+
+  followedBy Follow[] @relation("Following")
+  following  Follow[] @relation("Follower")
+
+  @@index([username])
+}
+
+model Video {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String   @db.VarChar(120)
+  caption      String?  @db.VarChar(280)
+  videoUrl     String
+  thumbnailUrl String?
+  duration     Float // seconds — enforced 6–10 in app + DB constraint
+  category     Category @default(MEMES)
+  views        Int      @default(0)
+  loops        Int      @default(0)
+  likesCount   Int      @default(0)
+  commentsCount Int     @default(0)
+  isFeatured   Boolean  @default(false)
+  isTrending   Boolean  @default(false)
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes       Like[]
+  comments    Comment[]
+  reports     Report[]
+  challengeId String?
+  challenge   Challenge?  @relation(fields: [challengeId], references: [id])
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([videoId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  videoId   String
+  body      String   @db.VarChar(500)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  videoId    String?
+  commentId  String?
+  reason     ReportReason @default(OTHER)
+  detail     String?      @db.VarChar(500)
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  reporter User   @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  video    Video? @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model Badge {
+  id          String    @id @default(uuid())
+  kind        BadgeKind @unique
+  label       String
+  description String
+  createdAt   DateTime  @default(now())
+
+  users UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(uuid())
+  userId   String
+  badgeId  String
+  grantedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
+
+model Challenge {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  description String
+  category    Category
+  bannerUrl   String?
+  isActive    Boolean  @default(true)
+  entries     Int      @default(0)
+  endsAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  videos Video[]
+}
