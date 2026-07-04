@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveMediaUrl } from "@/lib/media-store";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Video } from "@/lib/types";
 
@@ -32,6 +33,23 @@ export function VideoPlayer({
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [src, setSrc] = useState<string | null>(null);
+
+  // Resolve the playable source — rehydrates IndexedDB blobs for uploaded Zines
+  // so they survive reloads. Remote / sample / https URLs pass straight through.
+  useEffect(() => {
+    let alive = true;
+    setSrc(null);
+    setStatus("loading");
+    resolveMediaUrl(video.videoUrl).then((u) => {
+      if (!alive) return;
+      if (u) setSrc(u);
+      else setStatus("error");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [video.videoUrl]);
 
   // keep local mute in sync with the shared preference
   useEffect(() => {
@@ -110,7 +128,7 @@ export function VideoPlayer({
       {status !== "error" ? (
         <video
           ref={ref}
-          src={video.videoUrl}
+          src={src ?? undefined}
           poster={video.thumbnailUrl ?? undefined}
           className="absolute inset-0 h-full w-full object-cover"
           playsInline

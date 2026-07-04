@@ -21,9 +21,7 @@ export function Feed({
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
-    // Simulate an async fetch so loading states are exercised.
-    const t = setTimeout(() => setAll(allVideos()), 350);
-    return () => clearTimeout(t);
+    setAll(allVideos());
   }, []);
 
   const videos = useMemo(() => {

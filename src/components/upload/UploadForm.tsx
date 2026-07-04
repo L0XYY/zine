@@ -13,6 +13,7 @@ import {
 import { UPLOAD, CATEGORIES } from "@/lib/constants";
 import { challenges } from "@/lib/mock-data";
 import { saveLocalVideo } from "@/lib/local-store";
+import { putMedia, MEDIA_PREFIX } from "@/lib/media-store";
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/ErrorState";
@@ -30,6 +31,7 @@ interface Loaded {
   duration: number;
   isSample: boolean;
   fileName?: string;
+  file?: File;
 }
 
 /** Capture a poster frame + duration from a local file via canvas. */
@@ -130,6 +132,7 @@ export function UploadForm() {
         duration,
         isSample: false,
         fileName: file.name,
+        file,
       });
     } catch (e) {
       URL.revokeObjectURL(url);
@@ -172,11 +175,23 @@ export function UploadForm() {
     if (!user) return;
 
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 600));
+
+    const id = `v_local_${Date.now()}`;
+    let videoUrl = loaded.videoUrl;
+    // Persist an uploaded file to IndexedDB so the Zine survives page reloads
+    // (a raw blob: URL would die on refresh). Samples keep their remote URL.
+    if (!loaded.isSample && loaded.file) {
+      try {
+        await putMedia(id, loaded.file);
+        videoUrl = `${MEDIA_PREFIX}${id}`;
+      } catch {
+        // IndexedDB unavailable — fall back to the in-session object URL.
+      }
+    }
 
     const now = new Date().toISOString();
     const video: Video = {
-      id: `v_local_${Date.now()}`,
+      id,
       userId: user.id,
       author: {
         id: user.id,
@@ -190,7 +205,7 @@ export function UploadForm() {
       },
       title: title.trim().slice(0, 120),
       caption: caption.trim().slice(0, 280) || null,
-      videoUrl: loaded.videoUrl,
+      videoUrl,
       thumbnailUrl: loaded.thumbnailUrl || null,
       duration: loaded.duration,
       category,

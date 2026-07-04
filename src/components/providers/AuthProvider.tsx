@@ -175,7 +175,7 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-// tiny delay so buttons show a realistic loading state
+// minimal delay so the button's loading state registers without feeling slow
 function tick() {
-  return new Promise((r) => setTimeout(r, 350));
+  return new Promise((r) => setTimeout(r, 120));
 }

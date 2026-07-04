@@ -14,8 +14,7 @@ export function TrendingView() {
   const [filter, setFilter] = useState<CategoryFilter>("ALL");
 
   useEffect(() => {
-    const t = setTimeout(() => setAll(allVideos()), 300);
-    return () => clearTimeout(t);
+    setAll(allVideos());
   }, []);
 
   const ranked = useMemo(() => {

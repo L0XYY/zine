@@ -21,7 +21,7 @@
       radial-gradient(50% 40% at 15% 0%, rgba(45, 212, 191, 0.12), transparent 70%),
       radial-gradient(50% 40% at 85% 10%, rgba(52, 211, 153, 0.1), transparent 70%),
       radial-gradient(60% 50% at 50% 100%, rgba(34, 192, 122, 0.08), transparent 70%);
-    background-attachment: fixed;
+    background-repeat: no-repeat;
     min-height: 100vh;
   }
 
@@ -87,6 +87,18 @@
 
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/* Respect users who prefer reduced motion (also smoother on low-end devices) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
