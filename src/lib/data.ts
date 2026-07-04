@@ -123,8 +123,9 @@ export async function fetchUserByUsername(
 
 export async function searchUsers(query: string): Promise<User[]> {
   const client = sb();
+  const raw = query.trim();
   if (!client) {
-    const q = query.trim().toLowerCase();
+    const q = raw.toLowerCase();
     return local
       .allUsers()
       .filter(
@@ -134,11 +135,16 @@ export async function searchUsers(query: string): Promise<User[]> {
           u.displayName.toLowerCase().includes(q),
       );
   }
+  // Strip characters that would break PostgREST's or() filter grammar, and use
+  // `*` as the ilike wildcard (PostgREST converts it to %).
+  const q = raw.replace(/[,()*:%\\]/g, "").trim();
   let req = client.from("profiles").select("*").limit(50);
-  const q = query.trim();
-  if (q) req = req.or(`username.ilike.%${q}%,display_name.ilike.%${q}%`);
+  if (q) req = req.or(`username.ilike.*${q}*,display_name.ilike.*${q}*`);
   const { data, error } = await req.order("created_at", { ascending: false });
-  if (error) return [];
+  if (error) {
+    console.error("searchUsers", error.message);
+    return [];
+  }
   return (data ?? []).map(rowToUser);
 }
 
