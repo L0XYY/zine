@@ -1,15 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Flame, Swords, TrendingUp } from "lucide-react";
 import { formatCount } from "@/lib/utils";
-import { getTrending, challenges } from "@/lib/mock-data";
+import { challenges } from "@/lib/mock-data";
+import { fetchTrending } from "@/lib/data";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { CategoryPill } from "@/components/ui/CategoryPill";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
+import type { Video } from "@/lib/types";
 
 export function RightPanel() {
-  const trending = getTrending().slice(0, 5);
+  const [trending, setTrending] = useState<Video[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetchTrending().then((v) => {
+      if (alive) setTrending(v.slice(0, 5));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const activeChallenges = challenges.filter((c) => c.isActive).slice(0, 3);
 
   return (

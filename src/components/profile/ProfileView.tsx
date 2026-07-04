@@ -10,7 +10,7 @@ import {
   Settings as SettingsIcon,
   UserX,
 } from "lucide-react";
-import { findUserByUsername, videosByUser, allVideos } from "@/lib/local-store";
+import { fetchUserByUsername, fetchVideos, fetchVideosByUser } from "@/lib/data";
 import { isLiked } from "@/lib/interactions";
 import { cn, formatCount } from "@/lib/utils";
 import { ROLE_LABEL } from "@/lib/constants";
@@ -38,12 +38,27 @@ export function ProfileView({ username }: { username: string }) {
 
   useEffect(() => {
     if (loading) return;
-    const target = isMeRoute ? me ?? null : findUserByUsername(username) ?? null;
-    setResolved(target);
-    if (target) {
-      setZines(videosByUser(target.id));
-      setSparked(allVideos().filter((v) => isLiked(v.id)));
-    }
+    let alive = true;
+    (async () => {
+      const target = isMeRoute
+        ? me
+          ? await fetchUserByUsername(me.username)
+          : null
+        : await fetchUserByUsername(username);
+      if (!alive) return;
+      setResolved(target);
+      if (target) {
+        const z = await fetchVideosByUser(target.id);
+        if (!alive) return;
+        setZines(z);
+        const all = await fetchVideos();
+        if (!alive) return;
+        setSparked(all.filter((v) => isLiked(v.id)));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [username, isMeRoute, me, loading]);
 
   const joined = useMemo(() => {

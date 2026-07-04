@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard } from "lucide-react";
-import { allVideos } from "@/lib/local-store";
+import { fetchVideos } from "@/lib/data";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FeedItemSkeleton } from "@/components/ui/Skeleton";
 import { FeedItem } from "./FeedItem";
@@ -21,7 +21,13 @@ export function Feed({
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
-    setAll(allVideos());
+    let alive = true;
+    fetchVideos().then((v) => {
+      if (alive) setAll(v);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const videos = useMemo(() => {

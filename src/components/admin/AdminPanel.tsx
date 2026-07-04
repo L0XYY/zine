@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Ban,
   BadgeCheck,
@@ -16,11 +16,15 @@ import {
   Users as UsersIcon,
 } from "lucide-react";
 import {
-  users as seedUsers,
-  videos as seedVideos,
-  reports as seedReports,
-  comments as seedComments,
-} from "@/lib/mock-data";
+  adminDeleteComment,
+  adminFetchComments,
+  adminFetchReports,
+  adminFetchUsers,
+  adminFetchVideos,
+  adminSetReportStatus,
+  adminUpdateUser,
+  adminUpdateVideo,
+} from "@/lib/data";
 import { BADGES, ROLE_LABEL } from "@/lib/constants";
 import { cn, formatCount, timeAgo } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
@@ -51,19 +55,30 @@ const TABS: { key: Tab; label: string; icon: typeof UsersIcon }[] = [
 export function AdminPanel() {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("overview");
-  const [users, setUsers] = useState<User[]>(() =>
-    seedUsers.map((u) => ({ ...u, badges: [...u.badges] })),
-  );
-  const [videos, setVideos] = useState<Video[]>(() =>
-    seedVideos.map((v) => ({ ...v })),
-  );
-  const [reports, setReports] = useState<Report[]>(() =>
-    seedReports.map((r) => ({ ...r })),
-  );
-  const [comments, setComments] = useState<Comment[]>(() =>
-    seedComments.map((c) => ({ ...c })),
-  );
+  const [users, setUsers] = useState<User[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      adminFetchUsers(),
+      adminFetchVideos(),
+      adminFetchReports(),
+      adminFetchComments(),
+    ]).then(([u, v, r, c]) => {
+      if (!alive) return;
+      setUsers(u);
+      setVideos(v);
+      setReports(r);
+      setComments(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const pendingReports = reports.filter(
     (r) => r.status === "PENDING" || r.status === "REVIEWING",
@@ -75,18 +90,19 @@ export function AdminPanel() {
 
   const toggleVerify = (u: User) => {
     const verified = !u.verified;
-    patchUser(u.id, {
-      verified,
-      badges: verified
-        ? Array.from(new Set([...u.badges, "VERIFIED" as BadgeKind]))
-        : u.badges.filter((b) => b !== "VERIFIED"),
-    });
+    const badges = verified
+      ? Array.from(new Set([...u.badges, "VERIFIED" as BadgeKind]))
+      : u.badges.filter((b) => b !== "VERIFIED");
+    patchUser(u.id, { verified, badges });
+    void adminUpdateUser(u.id, { verified, badges });
     toast(verified ? `Verified @${u.username}` : `Removed verification`, "success");
   };
 
   const toggleBan = (u: User) => {
-    patchUser(u.id, { banned: !u.banned });
-    toast(u.banned ? `Unbanned @${u.username}` : `Banned @${u.username}`, u.banned ? "success" : "error");
+    const banned = !u.banned;
+    patchUser(u.id, { banned });
+    void adminUpdateUser(u.id, { banned });
+    toast(banned ? `Banned @${u.username}` : `Unbanned @${u.username}`, banned ? "error" : "success");
   };
 
   const grantBadge = (u: User, kind: BadgeKind) => {
@@ -95,11 +111,15 @@ export function AdminPanel() {
       toast(`@${u.username} already has ${BADGES[kind].label}`, "info");
       return;
     }
-    patchUser(u.id, {
-      badges: [...u.badges, kind],
-      ...(kind === "PARTNER" ? { partnered: true } : {}),
-      ...(kind === "VERIFIED" ? { verified: true } : {}),
-    });
+    const badges = [...u.badges, kind];
+    const extra =
+      kind === "PARTNER"
+        ? { partnered: true }
+        : kind === "VERIFIED"
+          ? { verified: true }
+          : {};
+    patchUser(u.id, { badges, ...extra });
+    void adminUpdateUser(u.id, { badges, ...extra });
     toast(`Gave @${u.username} the ${BADGES[kind].label} badge`, "success");
   };
 
@@ -109,26 +129,33 @@ export function AdminPanel() {
 
   const deleteVideo = (v: Video) => {
     patchVideo(v.id, { isDeleted: true });
+    void adminUpdateVideo(v.id, { is_deleted: true });
     toast(`Deleted "${v.title}"`, "error");
   };
   const toggleFeature = (v: Video) => {
-    patchVideo(v.id, { isFeatured: !v.isFeatured });
-    toast(v.isFeatured ? "Unfeatured" : `Featured "${v.title}"`, "success");
+    const featured = !v.isFeatured;
+    patchVideo(v.id, { isFeatured: featured });
+    void adminUpdateVideo(v.id, { is_featured: featured });
+    toast(featured ? `Featured "${v.title}"` : "Unfeatured", "success");
   };
   const toggleTrending = (v: Video) => {
-    patchVideo(v.id, { isTrending: !v.isTrending });
-    toast(v.isTrending ? "Removed from Hot Loops" : "Marked as trending", "success");
+    const trending = !v.isTrending;
+    patchVideo(v.id, { isTrending: trending });
+    void adminUpdateVideo(v.id, { is_trending: trending });
+    toast(trending ? "Marked as trending" : "Removed from Hot Loops", "success");
   };
 
   // --- report actions ---
   const setReportStatus = (id: string, status: ReportStatus) => {
     setReports((list) => list.map((r) => (r.id === id ? { ...r, status } : r)));
+    void adminSetReportStatus(id, status);
     toast(`Report ${status.toLowerCase()}`, status === "DISMISSED" ? "info" : "success");
   };
 
   // --- comment actions ---
   const removeComment = (id: string) => {
     setComments((list) => list.filter((c) => c.id !== id));
+    void adminDeleteComment(id);
     toast("Comment removed", "error");
   };
 

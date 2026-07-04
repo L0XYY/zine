@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, ImageIcon, LogOut, Save } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
-import { findUserByUsername } from "@/lib/local-store";
+import { fetchUserByUsername, uploadProfileImage } from "@/lib/data";
 import { isValidUsername, slugify } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -14,15 +14,6 @@ import { BadgeRow } from "@/components/ui/CreatorBadge";
 import { ROLE_LABEL } from "@/lib/constants";
 
 const MAX_IMG_MB = 3;
-
-function readImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Couldn't read that image."));
-    reader.readAsDataURL(file);
-  });
-}
 
 export function SettingsForm() {
   const router = useRouter();
@@ -44,6 +35,7 @@ export function SettingsForm() {
 
   const pickImage = async (
     file: File | undefined,
+    kind: "avatar" | "banner",
     set: (v: string) => void,
   ) => {
     setError(null);
@@ -56,11 +48,9 @@ export function SettingsForm() {
       setError(`Images must be under ${MAX_IMG_MB}MB.`);
       return;
     }
-    try {
-      set(await readImage(file));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Image upload failed.");
-    }
+    const url = await uploadProfileImage(user.id, kind, file);
+    if (url) set(url);
+    else setError("Image upload failed. Try a different file.");
   };
 
   const save = async (e: React.FormEvent) => {
@@ -76,14 +66,13 @@ export function SettingsForm() {
       setError("Usernames are 3–20 chars: lowercase letters, numbers, underscore.");
       return;
     }
-    const clash = findUserByUsername(uname);
+    setSaving(true);
+    const clash = await fetchUserByUsername(uname);
     if (clash && clash.id !== user.id) {
+      setSaving(false);
       setError("That username is already taken.");
       return;
     }
-
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
     updateProfile({
       displayName: displayName.trim(),
       username: uname,
@@ -129,7 +118,7 @@ export function SettingsForm() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => pickImage(e.target.files?.[0], setBannerUrl)}
+              onChange={(e) => pickImage(e.target.files?.[0], "banner", setBannerUrl)}
             />
           </div>
           <div className="flex items-center gap-4 p-4">
@@ -153,7 +142,7 @@ export function SettingsForm() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => pickImage(e.target.files?.[0], setAvatarUrl)}
+                onChange={(e) => pickImage(e.target.files?.[0], "avatar", setAvatarUrl)}
               />
             </div>
             <div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isFollowing, toggleFollow } from "@/lib/interactions";
+import { isFollowing, toggleFollow, subscribeInteractions } from "@/lib/interactions";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
 
@@ -25,13 +25,19 @@ export function FollowButton({
 
   useEffect(() => {
     setMounted(true);
-    setFollowing(isFollowing(targetUserId));
+    const sync = () => setFollowing(isFollowing(targetUserId));
+    sync();
+    return subscribeInteractions(sync);
   }, [targetUserId]);
 
   // Don't render a follow button for your own account.
   if (user && user.id === targetUserId) return null;
 
   const onClick = () => {
+    if (!user) {
+      toast("Log in to follow Ziners", "info");
+      return;
+    }
     const now = toggleFollow(targetUserId);
     setFollowing(now);
     toast(now ? `Following @${targetUsername}` : `Unfollowed @${targetUsername}`);

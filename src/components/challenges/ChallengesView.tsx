@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Clock, Swords, Trophy, Users } from "lucide-react";
 import { challenges } from "@/lib/mock-data";
-import { allVideos } from "@/lib/local-store";
+import { fetchVideosByChallenge } from "@/lib/data";
 import { CATEGORIES } from "@/lib/constants";
 import { formatCount } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -23,18 +23,22 @@ export function ChallengesView() {
   const router = useRouter();
   const params = useSearchParams();
   const selectedSlug = params.get("c");
-  const [videos, setVideos] = useState<Video[]>([]);
+  const selected = challenges.find((c) => c.slug === selectedSlug) ?? null;
+  const [entries, setEntries] = useState<Video[]>([]);
 
   useEffect(() => {
-    setVideos(allVideos());
-  }, []);
-
-  const selected = challenges.find((c) => c.slug === selectedSlug) ?? null;
-  const entries = useMemo(
-    () =>
-      selected ? videos.filter((v) => v.challengeSlug === selected.slug) : [],
-    [videos, selected],
-  );
+    if (!selectedSlug) {
+      setEntries([]);
+      return;
+    }
+    let alive = true;
+    fetchVideosByChallenge(selectedSlug).then((v) => {
+      if (alive) setEntries(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [selectedSlug]);
 
   if (selected) {
     return (

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Flag, Heart, MessageCircle, Repeat2, Share2 } from "lucide-react";
 import { cn, formatCount } from "@/lib/utils";
-import { isLiked, toggleLike } from "@/lib/interactions";
+import { isLiked, toggleLike, subscribeInteractions } from "@/lib/interactions";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReportModal } from "./ReportModal";
@@ -56,6 +57,7 @@ export function ActionRail({
   className?: string;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(video.likesCount);
   const [rezined, setRezined] = useState(false);
@@ -63,13 +65,19 @@ export function ActionRail({
   const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
-    setLiked(isLiked(video.id));
+    const sync = () => setLiked(isLiked(video.id));
+    sync();
+    return subscribeInteractions(sync);
   }, [video.id]);
 
   const onSpark = () => {
+    if (!user) {
+      toast("Log in to Spark loops", "info");
+      return;
+    }
     const nowLiked = toggleLike(video.id);
     setLiked(nowLiked);
-    setLikeCount((c) => c + (nowLiked ? 1 : -1));
+    setLikeCount((c) => Math.max(0, c + (nowLiked ? 1 : -1)));
     if (nowLiked) toast("Sparked ⚡", "success");
   };
 

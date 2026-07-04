@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, UserX } from "lucide-react";
-import { allUsers } from "@/lib/local-store";
+import { searchUsers } from "@/lib/data";
 import { formatCount } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedCheck, BadgeRow } from "@/components/ui/CreatorBadge";
@@ -14,24 +14,21 @@ import type { User } from "@/lib/types";
 
 export function SearchView({ initialQuery = "" }: { initialQuery?: string }) {
   const [query, setQuery] = useState(initialQuery);
-  const [users, setUsers] = useState<User[] | null>(null);
+  const [results, setResults] = useState<User[] | null>(null);
 
   useEffect(() => {
-    setUsers(allUsers());
-  }, []);
-
-  const results = useMemo(() => {
-    if (!users) return [];
-    const q = query.trim().toLowerCase();
-    const list = q
-      ? users.filter(
-          (u) =>
-            u.username.toLowerCase().includes(q) ||
-            u.displayName.toLowerCase().includes(q),
-        )
-      : users;
-    return list.slice(0, 50);
-  }, [users, query]);
+    let alive = true;
+    setResults(null);
+    const t = setTimeout(() => {
+      searchUsers(query).then((r) => {
+        if (alive) setResults(r);
+      });
+    }, 200);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [query]);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -57,7 +54,7 @@ export function SearchView({ initialQuery = "" }: { initialQuery?: string }) {
         />
       </div>
 
-      {users === null ? (
+      {results === null ? (
         <ul className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <li

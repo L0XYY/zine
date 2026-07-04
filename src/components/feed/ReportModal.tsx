@@ -5,8 +5,10 @@ import { Flag } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { REPORT_REASONS } from "@/lib/constants";
+import { createReport } from "@/lib/data";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
-import type { Video } from "@/lib/types";
+import type { ReportReason, Video } from "@/lib/types";
 
 export function ReportModal({
   video,
@@ -18,34 +20,28 @@ export function ReportModal({
   onClose: () => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [reason, setReason] = useState<string>("");
   const [detail, setDetail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
     if (!reason) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId: video.id, reason, detail }),
-      });
-      if (res.status === 429) {
-        const data = await res.json().catch(() => ({}));
-        toast(data.error ?? "You're reporting too fast. Try again soon.", "error");
-        setSubmitting(false);
-        return;
-      }
-      onClose();
-      setReason("");
-      setDetail("");
-      toast("Report received — our mods will take a look.", "success");
-    } catch {
-      toast("Couldn't submit the report. Check your connection.", "error");
-    } finally {
-      setSubmitting(false);
+    if (!user) {
+      toast("Log in to report content.", "info");
+      return;
     }
+    setSubmitting(true);
+    const ok = await createReport(video.id, reason as ReportReason, detail, user.id);
+    setSubmitting(false);
+    if (!ok) {
+      toast("Couldn't submit the report. Try again.", "error");
+      return;
+    }
+    onClose();
+    setReason("");
+    setDetail("");
+    toast("Report received — our mods will take a look.", "success");
   };
 
   return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Flame, TrendingUp } from "lucide-react";
-import { allVideos } from "@/lib/local-store";
+import { fetchVideos } from "@/lib/data";
 import { CategoryTabs, type CategoryFilter } from "@/components/feed/CategoryTabs";
 import { VideoGrid } from "@/components/feed/VideoGrid";
 import { VideoCardSkeleton } from "@/components/ui/Skeleton";
@@ -14,7 +14,13 @@ export function TrendingView() {
   const [filter, setFilter] = useState<CategoryFilter>("ALL");
 
   useEffect(() => {
-    setAll(allVideos());
+    let alive = true;
+    fetchVideos().then((v) => {
+      if (alive) setAll(v);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const ranked = useMemo(() => {

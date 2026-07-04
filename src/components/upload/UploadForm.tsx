@@ -12,15 +12,14 @@ import {
 } from "lucide-react";
 import { UPLOAD, CATEGORIES } from "@/lib/constants";
 import { challenges } from "@/lib/mock-data";
-import { saveLocalVideo } from "@/lib/local-store";
-import { putMedia, MEDIA_PREFIX } from "@/lib/media-store";
+import { createVideo } from "@/lib/data";
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/ErrorState";
 import { CategoryPill } from "@/components/ui/CategoryPill";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
-import type { Category, Video } from "@/lib/types";
+import type { Category } from "@/lib/types";
 
 const SAMPLE_URL =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
@@ -175,54 +174,26 @@ export function UploadForm() {
     if (!user) return;
 
     setSubmitting(true);
-
-    const id = `v_local_${Date.now()}`;
-    let videoUrl = loaded.videoUrl;
-    // Persist an uploaded file to IndexedDB so the Zine survives page reloads
-    // (a raw blob: URL would die on refresh). Samples keep their remote URL.
-    if (!loaded.isSample && loaded.file) {
-      try {
-        await putMedia(id, loaded.file);
-        videoUrl = `${MEDIA_PREFIX}${id}`;
-      } catch {
-        // IndexedDB unavailable — fall back to the in-session object URL.
-      }
+    try {
+      await createVideo({
+        user,
+        title: title.trim().slice(0, 120),
+        caption: caption.trim().slice(0, 280) || null,
+        category,
+        challengeSlug: challengeSlug || null,
+        duration: loaded.duration,
+        file: loaded.isSample ? null : loaded.file ?? null,
+        sampleUrl: loaded.isSample ? loaded.videoUrl : null,
+        thumbnailDataUrl: loaded.thumbnailUrl || null,
+      });
+      toast("Your Zine is live 🎬", "success");
+      router.push(`/u/${user.username}`);
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "Couldn't post your Zine. Try again.",
+      );
+      setSubmitting(false);
     }
-
-    const now = new Date().toISOString();
-    const video: Video = {
-      id,
-      userId: user.id,
-      author: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        avatarUrl: user.avatarUrl,
-        verified: user.verified,
-        partnered: user.partnered,
-        role: user.role,
-        badges: user.badges,
-      },
-      title: title.trim().slice(0, 120),
-      caption: caption.trim().slice(0, 280) || null,
-      videoUrl,
-      thumbnailUrl: loaded.thumbnailUrl || null,
-      duration: loaded.duration,
-      category,
-      views: 0,
-      loops: 0,
-      likesCount: 0,
-      commentsCount: 0,
-      isFeatured: false,
-      isTrending: false,
-      isDeleted: false,
-      challengeSlug: challengeSlug || null,
-      createdAt: now,
-    };
-    saveLocalVideo(video);
-    setSubmitting(false);
-    toast("Your Zine is live 🎬", "success");
-    router.push(`/u/${user.username}`);
   };
 
   return (

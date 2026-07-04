@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, Send } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getCommentsForVideo } from "@/lib/mock-data";
+import { Spinner } from "@/components/ui/Spinner";
+import { fetchComments, addComment } from "@/lib/data";
 import { timeAgo } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import type { Comment, Video } from "@/lib/types";
@@ -22,42 +23,44 @@ export function CommentsSheet({
   onClose: () => void;
 }) {
   const { user } = useAuth();
-  const seed = useMemo(() => getCommentsForVideo(video.id), [video.id]);
-  const [added, setAdded] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<Comment[] | null>(null);
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
 
-  const comments = [...added, ...seed];
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !draft.trim()) return;
-    const comment: Comment = {
-      id: `local_${Date.now()}`,
-      videoId: video.id,
-      author: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        avatarUrl: user.avatarUrl,
-        verified: user.verified,
-        badges: user.badges,
-      },
-      body: draft.trim().slice(0, 500),
-      createdAt: new Date().toISOString(),
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    setComments(null);
+    fetchComments(video.id).then((c) => {
+      if (alive) setComments(c);
+    });
+    return () => {
+      alive = false;
     };
-    setAdded((a) => [comment, ...a]);
+  }, [open, video.id]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !draft.trim() || sending) return;
+    const body = draft.trim();
     setDraft("");
+    setSending(true);
+    const c = await addComment(video.id, body, user);
+    setSending(false);
+    if (c) setComments((prev) => [c, ...(prev ?? [])]);
   };
 
+  const count = comments?.length ?? 0;
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={`Comments · ${comments.length}`}
-    >
+    <Modal open={open} onClose={onClose} title={`Comments · ${count}`}>
       <div className="flex max-h-[70vh] flex-col">
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {comments.length === 0 ? (
+          {comments === null ? (
+            <div className="grid place-items-center py-10">
+              <Spinner className="h-6 w-6 text-zine-teal" />
+            </div>
+          ) : comments.length === 0 ? (
             <EmptyState
               icon={<MessageCircle className="h-6 w-6" />}
               title="No comments yet"
@@ -109,7 +112,7 @@ export function CommentsSheet({
               />
               <button
                 type="submit"
-                disabled={!draft.trim()}
+                disabled={!draft.trim() || sending}
                 className="ring-focus grid h-11 w-11 shrink-0 place-items-center rounded-full bg-zine-gradient text-white disabled:opacity-40"
                 aria-label="Post comment"
               >
