@@ -17,7 +17,7 @@ import { ROLE_LABEL } from "@/lib/constants";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { VerifiedCheck, BadgeRow } from "@/components/ui/CreatorBadge";
+import { InlineBadges, BadgeRow } from "@/components/ui/CreatorBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VideoGrid } from "@/components/feed/VideoGrid";
 import { FollowButton } from "@/components/feed/FollowButton";
@@ -146,7 +146,11 @@ export function ProfileView({ username }: { username: string }) {
             <h1 className="font-display text-2xl font-bold tracking-tight text-white">
               {resolved.displayName}
             </h1>
-            {resolved.verified && <VerifiedCheck className="h-5 w-5" />}
+            <InlineBadges
+              badges={resolved.badges}
+              verified={resolved.verified}
+              className="gap-1 [&_svg]:h-5 [&_svg]:w-5"
+            />
           </div>
           <p className="text-sm text-slate-400">@{resolved.username}</p>
         </div>

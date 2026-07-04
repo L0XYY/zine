@@ -30,7 +30,7 @@ import { cn, formatCount, timeAgo } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { CategoryPill } from "@/components/ui/CategoryPill";
-import { VerifiedCheck } from "@/components/ui/CreatorBadge";
+import { InlineBadges } from "@/components/ui/CreatorBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
 import type {
@@ -88,14 +88,23 @@ export function AdminPanel() {
   const patchUser = (id: string, patch: Partial<User>) =>
     setUsers((list) => list.map((u) => (u.id === id ? { ...u, ...patch } : u)));
 
-  const toggleVerify = (u: User) => {
-    const verified = !u.verified;
-    const badges = verified
-      ? Array.from(new Set([...u.badges, "VERIFIED" as BadgeKind]))
-      : u.badges.filter((b) => b !== "VERIFIED");
-    patchUser(u.id, { verified, badges });
-    void adminUpdateUser(u.id, { verified, badges });
-    toast(verified ? `Verified @${u.username}` : `Removed verification`, "success");
+  const toggleBadge = (u: User, kind: BadgeKind) => {
+    const has = u.badges.includes(kind);
+    const badges = has
+      ? u.badges.filter((b) => b !== kind)
+      : [...u.badges, kind];
+    // Keep the verified / partnered flags in step with their badges.
+    const flags: Partial<User> = {};
+    if (kind === "VERIFIED") flags.verified = !has;
+    if (kind === "PARTNER") flags.partnered = !has;
+    patchUser(u.id, { badges, ...flags });
+    void adminUpdateUser(u.id, { badges, ...flags });
+    toast(
+      has
+        ? `Removed ${BADGES[kind].label} from @${u.username}`
+        : `Gave @${u.username} the ${BADGES[kind].label} badge`,
+      has ? "info" : "success",
+    );
   };
 
   const toggleBan = (u: User) => {
@@ -103,24 +112,6 @@ export function AdminPanel() {
     patchUser(u.id, { banned });
     void adminUpdateUser(u.id, { banned });
     toast(banned ? `Banned @${u.username}` : `Unbanned @${u.username}`, banned ? "error" : "success");
-  };
-
-  const grantBadge = (u: User, kind: BadgeKind) => {
-    if (!kind) return;
-    if (u.badges.includes(kind)) {
-      toast(`@${u.username} already has ${BADGES[kind].label}`, "info");
-      return;
-    }
-    const badges = [...u.badges, kind];
-    const extra =
-      kind === "PARTNER"
-        ? { partnered: true }
-        : kind === "VERIFIED"
-          ? { verified: true }
-          : {};
-    patchUser(u.id, { badges, ...extra });
-    void adminUpdateUser(u.id, { badges, ...extra });
-    toast(`Gave @${u.username} the ${BADGES[kind].label} badge`, "success");
   };
 
   // --- video actions ---
@@ -250,9 +241,8 @@ export function AdminPanel() {
             <UserRow
               key={u.id}
               user={u}
-              onVerify={() => toggleVerify(u)}
+              onToggleBadge={(k) => toggleBadge(u, k)}
               onBan={() => toggleBan(u)}
-              onGrant={(k) => grantBadge(u, k)}
             />
           ))}
         </div>
@@ -406,17 +396,16 @@ function Overview({
 
 function UserRow({
   user,
-  onVerify,
+  onToggleBadge,
   onBan,
-  onGrant,
 }: {
   user: User;
-  onVerify: () => void;
+  onToggleBadge: (kind: BadgeKind) => void;
   onBan: () => void;
-  onGrant: (kind: BadgeKind) => void;
 }) {
+  const badgeKinds = Object.keys(BADGES) as BadgeKind[];
   return (
-    <GlassPanel className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
+    <GlassPanel className="flex flex-col gap-3 p-3.5 lg:flex-row lg:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar src={user.avatarUrl} name={user.displayName} size="sm" />
         <div className="min-w-0">
@@ -424,7 +413,7 @@ function UserRow({
             <span className="truncate font-medium text-white">
               {user.displayName}
             </span>
-            {user.verified && <VerifiedCheck className="h-3.5 w-3.5" />}
+            <InlineBadges badges={user.badges} verified={user.verified} />
             {user.banned && (
               <span className="rounded bg-rose-500/20 px-1.5 text-[10px] font-semibold text-rose-300">
                 BANNED
@@ -437,30 +426,26 @@ function UserRow({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          onChange={(e) => {
-            onGrant(e.target.value as BadgeKind);
-            e.currentTarget.selectedIndex = 0;
-          }}
-          className="ring-focus h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-slate-300"
-          defaultValue=""
-        >
-          <option value="" disabled>
-            Give badge…
-          </option>
-          {Object.values(BADGES).map((b) => (
-            <option key={b.kind} value={b.kind} className="bg-ink-800">
-              {b.label}
-            </option>
-          ))}
-        </select>
-        <AdminAction
-          onClick={onVerify}
-          active={user.verified}
-          icon={<BadgeCheck className="h-4 w-4" />}
-          label={user.verified ? "Unverify" : "Verify"}
-        />
+      {/* Tap a badge to grant/revoke it */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {badgeKinds.map((kind) => {
+          const active = user.badges.includes(kind);
+          return (
+            <button
+              key={kind}
+              onClick={() => onToggleBadge(kind)}
+              title={`${active ? "Remove" : "Add"} ${BADGES[kind].label}`}
+              className={cn(
+                "ring-focus rounded-lg border px-2 py-1 text-xs font-medium transition-colors",
+                active
+                  ? BADGES[kind].className
+                  : "border-white/10 text-slate-500 hover:bg-white/5 hover:text-white",
+              )}
+            >
+              {BADGES[kind].label}
+            </button>
+          );
+        })}
         <AdminAction
           onClick={onBan}
           danger

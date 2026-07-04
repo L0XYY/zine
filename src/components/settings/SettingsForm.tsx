@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, ImageIcon, LogOut, Save } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
-import { fetchUserByUsername, uploadProfileImage } from "@/lib/data";
+import { fetchUserByUsername, prepareProfileImage } from "@/lib/data";
 import { isValidUsername, slugify } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -48,9 +48,9 @@ export function SettingsForm() {
       setError(`Images must be under ${MAX_IMG_MB}MB.`);
       return;
     }
-    const url = await uploadProfileImage(user.id, kind, file);
-    if (url) set(url);
-    else setError("Image upload failed. Try a different file.");
+    const dataUrl = await prepareProfileImage(kind, file);
+    if (dataUrl) set(dataUrl);
+    else setError("Couldn't process that image. Try a different file.");
   };
 
   const save = async (e: React.FormEvent) => {
@@ -73,7 +73,7 @@ export function SettingsForm() {
       setError("That username is already taken.");
       return;
     }
-    updateProfile({
+    await updateProfile({
       displayName: displayName.trim(),
       username: uname,
       bio: bio.trim() || null,

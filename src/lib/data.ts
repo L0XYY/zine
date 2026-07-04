@@ -23,7 +23,8 @@ import type {
   Video,
 } from "@/lib/types";
 
-const VIDEO_SELECT = "*, author:profiles(*), likes(count), comments(count)";
+const VIDEO_SELECT =
+  "*, author:profiles(id,username,display_name,avatar_url,verified,partnered,role,badges), likes(count), comments(count)";
 
 function sb() {
   return isSupabaseConfigured() ? getSupabaseBrowserClient() : null;
@@ -405,31 +406,52 @@ export async function createVideo(input: CreateVideoInput): Promise<Video> {
   return withCounts(data);
 }
 
-export async function uploadProfileImage(
-  userId: string,
+function resizeImageToDataUrl(
+  file: File,
+  maxW: number,
+  maxH: number,
+  quality: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxW / img.width, maxH / img.height);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas unavailable"));
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read that image."));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Turn a chosen avatar/banner into a compact JPEG data URL stored inline on the
+ * profile. Resizing keeps rows small, and it works regardless of Storage
+ * policies — so profile media always updates.
+ */
+export async function prepareProfileImage(
   kind: "avatar" | "banner",
   file: File,
 ): Promise<string | null> {
-  const client = sb();
-  if (!client) {
-    // mock mode: return a data URL
-    return await new Promise<string | null>((resolve) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result));
-      r.onerror = () => resolve(null);
-      r.readAsDataURL(file);
-    });
-  }
-  const ext = (file.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-  const path = `${userId}/${kind}-${Date.now()}.${ext}`;
-  const { error } = await client.storage
-    .from(VIDEO_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: true });
-  if (error) {
-    console.error("uploadProfileImage", error.message);
+  try {
+    return kind === "avatar"
+      ? await resizeImageToDataUrl(file, 320, 320, 0.85)
+      : await resizeImageToDataUrl(file, 1280, 420, 0.82);
+  } catch {
     return null;
   }
-  return client.storage.from(VIDEO_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 // --- Admin -----------------------------------------------------------------

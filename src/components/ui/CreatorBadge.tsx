@@ -11,6 +11,22 @@ const ICONS: Record<BadgeKind, typeof BadgeCheck> = {
   EARLY: Sparkles,
 };
 
+const BADGE_COLOR: Record<BadgeKind, string> = {
+  VERIFIED: "text-sky-400",
+  FOUNDER: "text-amber-300",
+  STAFF: "text-emerald-300",
+  PARTNER: "text-teal-300",
+  EARLY: "text-cyan-300",
+};
+
+const BADGE_ORDER: BadgeKind[] = [
+  "VERIFIED",
+  "FOUNDER",
+  "STAFF",
+  "PARTNER",
+  "EARLY",
+];
+
 /** Inline verified tick placed next to a display name. */
 export function VerifiedCheck({ className }: { className?: string }) {
   return (
@@ -18,6 +34,37 @@ export function VerifiedCheck({ className }: { className?: string }) {
       className={cn("h-4 w-4 text-sky-400", className)}
       aria-label="Verified"
     />
+  );
+}
+
+/** Small badge icons rendered inline next to a display name (like the tick). */
+export function InlineBadges({
+  badges,
+  verified,
+  className,
+}: {
+  badges: BadgeKind[];
+  verified?: boolean;
+  className?: string;
+}) {
+  const set = new Set(badges);
+  if (verified) set.add("VERIFIED");
+  const shown = BADGE_ORDER.filter((b) => set.has(b));
+  if (shown.length === 0) return null;
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-0.5", className)}>
+      {shown.map((b) => {
+        const Icon = ICONS[b];
+        return (
+          <span key={b} title={BADGES[b].label} className="inline-flex">
+            <Icon
+              className={cn("h-4 w-4", BADGE_COLOR[b])}
+              aria-label={BADGES[b].label}
+            />
+          </span>
+        );
+      })}
+    </span>
   );
 }
 

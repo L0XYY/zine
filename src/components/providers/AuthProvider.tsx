@@ -42,7 +42,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   signup: (input: SignupInput) => Promise<{ error?: string }>;
   logout: () => void;
-  updateProfile: (patch: Partial<User>) => void;
+  updateProfile: (patch: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -252,20 +252,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [persistMock]);
 
   const updateProfile = useCallback<AuthContextValue["updateProfile"]>(
-    (patch) => {
-      setUser((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev, ...patch };
-        if (SUPA) {
-          const client = getSupabaseBrowserClient();
-          void client?.from("profiles").update(mapProfilePatch(patch)).eq("id", prev.id);
-        } else {
-          saveLocalUser(next);
-        }
-        return next;
-      });
+    async (patch) => {
+      // Optimistically update everywhere the auth user is shown…
+      setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+      const current = user;
+      if (!current) return;
+      // …then persist, awaiting so callers can navigate to fresh data.
+      if (SUPA) {
+        const client = getSupabaseBrowserClient();
+        if (client)
+          await client
+            .from("profiles")
+            .update(mapProfilePatch(patch))
+            .eq("id", current.id);
+      } else {
+        saveLocalUser({ ...current, ...patch });
+      }
     },
-    [],
+    [user],
   );
 
   const value = useMemo<AuthContextValue>(
