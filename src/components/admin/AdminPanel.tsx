@@ -38,9 +38,19 @@ import type {
   Comment,
   Report,
   ReportStatus,
+  Role,
   User,
   Video,
 } from "@/lib/types";
+
+const ROLES: Role[] = [
+  "OWNER",
+  "ADMIN",
+  "MODERATOR",
+  "PARTNER",
+  "VERIFIED",
+  "USER",
+];
 
 type Tab = "overview" | "users" | "videos" | "reports" | "comments";
 
@@ -112,6 +122,13 @@ export function AdminPanel() {
     patchUser(u.id, { banned });
     void adminUpdateUser(u.id, { banned });
     toast(banned ? `Banned @${u.username}` : `Unbanned @${u.username}`, banned ? "error" : "success");
+  };
+
+  const setUserRole = (u: User, role: Role) => {
+    if (role === u.role) return;
+    patchUser(u.id, { role });
+    void adminUpdateUser(u.id, { role });
+    toast(`@${u.username} is now ${ROLE_LABEL[role]}`, "success");
   };
 
   // --- video actions ---
@@ -242,6 +259,7 @@ export function AdminPanel() {
               key={u.id}
               user={u}
               onToggleBadge={(k) => toggleBadge(u, k)}
+              onSetRole={(r) => setUserRole(u, r)}
               onBan={() => toggleBan(u)}
             />
           ))}
@@ -397,10 +415,12 @@ function Overview({
 function UserRow({
   user,
   onToggleBadge,
+  onSetRole,
   onBan,
 }: {
   user: User;
   onToggleBadge: (kind: BadgeKind) => void;
+  onSetRole: (role: Role) => void;
   onBan: () => void;
 }) {
   const badgeKinds = Object.keys(BADGES) as BadgeKind[];
@@ -420,14 +440,24 @@ function UserRow({
               </span>
             )}
           </div>
-          <p className="truncate text-xs text-slate-400">
-            @{user.username} · {ROLE_LABEL[user.role]}
-          </p>
+          <p className="truncate text-xs text-slate-400">@{user.username}</p>
         </div>
       </div>
 
-      {/* Tap a badge to grant/revoke it */}
+      {/* Role + badge controls */}
       <div className="flex flex-wrap items-center gap-1.5">
+        <select
+          value={user.role}
+          onChange={(e) => onSetRole(e.target.value as Role)}
+          title="Set role"
+          className="ring-focus h-8 rounded-lg border border-white/10 bg-white/5 px-2 text-xs font-medium text-slate-200"
+        >
+          {ROLES.map((r) => (
+            <option key={r} value={r} className="bg-ink-800">
+              {ROLE_LABEL[r]}
+            </option>
+          ))}
+        </select>
         {badgeKinds.map((kind) => {
           const active = user.badges.includes(kind);
           return (
@@ -572,7 +602,16 @@ function ReportRow({
           </span>
         </div>
         <p className="mt-1.5 text-sm text-white">
-          {report.videoTitle ?? "Content"}{" "}
+          {report.commentId ? (
+            <span>
+              💬 Comment:{" "}
+              <span className="text-slate-300">
+                “{report.commentBody ?? "—"}”
+              </span>
+            </span>
+          ) : (
+            report.videoTitle ?? "Content"
+          )}{" "}
           <span className="text-slate-400">
             — reported by @{report.reporterUsername}
           </span>

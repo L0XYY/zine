@@ -69,6 +69,7 @@ export function rowToComment(row: any): Comment {
   return {
     id: row.id,
     videoId: row.video_id,
+    userId: row.user_id,
     author: {
       id: a.id ?? row.user_id,
       username: a.username ?? "",

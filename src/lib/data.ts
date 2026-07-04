@@ -14,8 +14,11 @@ import * as local from "@/lib/local-store";
 import { putMedia, MEDIA_PREFIX } from "@/lib/media-store";
 import { getCommentsForVideo as localComments } from "@/lib/mock-data";
 import type {
+  BadgeKind,
   Category,
   Comment,
+  Conversation,
+  DirectMessage,
   Report,
   ReportReason,
   ReportStatus,
@@ -175,6 +178,7 @@ export async function addComment(
     return {
       id: `local_${Date.now()}`,
       videoId,
+      userId: author.id,
       author: {
         id: author.id,
         username: author.username,
@@ -277,6 +281,177 @@ export async function createReport(
   });
   if (error) console.error("createReport", error.message);
   return !error;
+}
+
+export async function reportComment(
+  commentId: string,
+  reason: ReportReason,
+  detail: string,
+  reporterId: string,
+): Promise<boolean> {
+  const client = sb();
+  if (!client) return true;
+  const { error } = await client.from("reports").insert({
+    comment_id: commentId,
+    reporter_id: reporterId,
+    reason,
+    detail: detail.slice(0, 500) || null,
+  });
+  if (error) console.error("reportComment", error.message);
+  return !error;
+}
+
+// --- Views & loops ---------------------------------------------------------
+
+const viewedThisSession = new Set<string>();
+
+/** Count a view at most once per video per session. */
+export async function markViewed(videoId: string): Promise<void> {
+  if (viewedThisSession.has(videoId)) return;
+  viewedThisSession.add(videoId);
+  const client = sb();
+  if (!client) return;
+  await client.rpc("increment_views", { vid: videoId });
+}
+
+export async function incrementLoops(videoId: string): Promise<void> {
+  const client = sb();
+  if (!client) return;
+  await client.rpc("increment_loops", { vid: videoId });
+}
+
+// --- Comment moderation ----------------------------------------------------
+
+/** Soft-delete a comment (owner or staff — enforced by RLS). */
+export async function deleteComment(commentId: string): Promise<boolean> {
+  const client = sb();
+  if (!client) return true;
+  const { error } = await client
+    .from("comments")
+    .update({ is_deleted: true })
+    .eq("id", commentId);
+  if (error) console.error("deleteComment", error.message);
+  return !error;
+}
+
+// --- Direct messages -------------------------------------------------------
+
+const CONVO_SELECT =
+  "id, last_message, last_message_at, a:profiles!user_a(id,username,display_name,avatar_url,verified,badges), b:profiles!user_b(id,username,display_name,avatar_url,verified,badges)";
+
+export async function getOrCreateConversation(
+  otherUserId: string,
+  meId: string,
+): Promise<string | null> {
+  const client = sb();
+  if (!client || otherUserId === meId) return null;
+  const [ua, ub] = [meId, otherUserId].sort();
+  const { data: existing } = await client
+    .from("conversations")
+    .select("id")
+    .eq("user_a", ua)
+    .eq("user_b", ub)
+    .maybeSingle();
+  if (existing) return existing.id;
+  const { data: created, error } = await client
+    .from("conversations")
+    .insert({ user_a: ua, user_b: ub })
+    .select("id")
+    .single();
+  if (error) {
+    const { data: retry } = await client
+      .from("conversations")
+      .select("id")
+      .eq("user_a", ua)
+      .eq("user_b", ub)
+      .maybeSingle();
+    return retry?.id ?? null;
+  }
+  return created?.id ?? null;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function rowToConversation(row: any, meId: string): Conversation {
+  const other = row.a?.id === meId ? row.b : row.a;
+  return {
+    id: row.id,
+    other: {
+      id: other?.id ?? "",
+      username: other?.username ?? "",
+      displayName: other?.display_name ?? "",
+      avatarUrl: other?.avatar_url ?? null,
+      verified: !!other?.verified,
+      badges: (other?.badges ?? []) as BadgeKind[],
+    },
+    lastMessage: row.last_message ?? null,
+    lastMessageAt: row.last_message_at,
+  };
+}
+
+function rowToMessage(r: any): DirectMessage {
+  return {
+    id: r.id,
+    conversationId: r.conversation_id,
+    senderId: r.sender_id,
+    body: r.body,
+    createdAt: r.created_at,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export async function fetchConversations(
+  meId: string,
+): Promise<Conversation[]> {
+  const client = sb();
+  if (!client) return [];
+  const { data, error } = await client
+    .from("conversations")
+    .select(CONVO_SELECT)
+    .or(`user_a.eq.${meId},user_b.eq.${meId}`)
+    .order("last_message_at", { ascending: false });
+  if (error) {
+    console.error("fetchConversations", error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => rowToConversation(r, meId));
+}
+
+export async function fetchMessages(
+  conversationId: string,
+): Promise<DirectMessage[]> {
+  const client = sb();
+  if (!client) return [];
+  const { data, error } = await client
+    .from("messages")
+    .select("*")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true })
+    .limit(300);
+  if (error) return [];
+  return (data ?? []).map(rowToMessage);
+}
+
+export async function sendMessage(
+  conversationId: string,
+  senderId: string,
+  body: string,
+): Promise<DirectMessage | null> {
+  const client = sb();
+  if (!client) return null;
+  const { data, error } = await client
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      body: body.trim().slice(0, 2000),
+    })
+    .select("*")
+    .single();
+  if (error) {
+    console.error("sendMessage", error.message);
+    return null;
+  }
+  return rowToMessage(data);
 }
 
 // --- Uploads ---------------------------------------------------------------
@@ -482,13 +657,17 @@ export async function adminFetchReports(): Promise<Report[]> {
   if (!client) return [];
   const { data } = await client
     .from("reports")
-    .select("*, reporter:profiles(username), video:videos(id,title)")
+    .select(
+      "*, reporter:profiles(username), video:videos(id,title), comment:comments(id,body)",
+    )
     .order("created_at", { ascending: false });
   return (data ?? []).map((r: any) => ({
     id: r.id,
     reporterUsername: r.reporter?.username ?? "unknown",
     videoId: r.video?.id ?? null,
     videoTitle: r.video?.title ?? null,
+    commentId: r.comment?.id ?? null,
+    commentBody: r.comment?.body ?? null,
     reason: r.reason as ReportReason,
     detail: r.detail ?? null,
     status: r.status as ReportStatus,

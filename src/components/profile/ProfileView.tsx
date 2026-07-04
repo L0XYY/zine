@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Clapperboard,
   Heart,
+  MessageSquare,
   Settings as SettingsIcon,
   UserX,
 } from "lucide-react";
@@ -131,11 +132,23 @@ export function ProfileView({ username }: { username: string }) {
                 <SettingsIcon className="h-4 w-4" /> Edit profile
               </Button>
             ) : (
-              <FollowButton
-                targetUserId={resolved.id}
-                targetUsername={resolved.username}
-                size="md"
-              />
+              <>
+                {me && (
+                  <Button
+                    href={`/messages/${resolved.username}`}
+                    variant="glass"
+                    size="sm"
+                    aria-label={`Message ${resolved.displayName}`}
+                  >
+                    <MessageSquare className="h-4 w-4" /> Message
+                  </Button>
+                )}
+                <FollowButton
+                  targetUserId={resolved.id}
+                  targetUsername={resolved.username}
+                  size="md"
+                />
+              </>
             )}
           </div>
         </div>

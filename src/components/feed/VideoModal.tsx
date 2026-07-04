@@ -5,6 +5,7 @@ import { X, Eye, Repeat2 } from "lucide-react";
 import { useEffect } from "react";
 import Link from "next/link";
 import { formatCount } from "@/lib/utils";
+import { markViewed } from "@/lib/data";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
 import { CategoryPill } from "@/components/ui/CategoryPill";
@@ -21,6 +22,10 @@ export function VideoModal({
   open: boolean;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    if (open && video) void markViewed(video.id);
+  }, [open, video]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();

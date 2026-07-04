@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { MessageSquare, Search } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Logo } from "@/components/ui/Logo";
 import { Avatar } from "@/components/ui/Avatar";
@@ -26,6 +26,15 @@ export function MobileTopBar({ transparent = false }: { transparent?: boolean })
         >
           <Search className="h-5 w-5" />
         </Link>
+        {user && (
+          <Link
+            href="/messages"
+            className="ring-focus grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10"
+            aria-label="Messages"
+          >
+            <MessageSquare className="h-5 w-5" />
+          </Link>
+        )}
         {user ? (
           <Link href={`/u/${user.username}`} aria-label="Your profile">
             <Avatar src={user.avatarUrl} name={user.displayName} size="sm" />

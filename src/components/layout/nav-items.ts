@@ -2,6 +2,7 @@ import {
   Compass,
   Flame,
   Home,
+  MessageSquare,
   Settings,
   Shield,
   Swords,
@@ -23,6 +24,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Feed", href: "/feed", icon: Home },
   { label: "Hot Loops", href: "/trending", icon: Flame },
+  { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Challenges", href: "/challenges", icon: Swords },
   { label: "Upload", href: "/upload", icon: Upload, primary: true },
   { label: "Profile", href: "/u/me", icon: UserIcon, dynamicProfile: true },

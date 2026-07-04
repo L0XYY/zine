@@ -78,6 +78,7 @@ export interface Video {
 export interface Comment {
   id: string;
   videoId: string;
+  userId: string;
   author: Pick<User, "id" | "username" | "displayName" | "avatarUrl" | "verified" | "badges">;
   body: string;
   createdAt: string;
@@ -88,6 +89,8 @@ export interface Report {
   reporterUsername: string;
   videoId: string | null;
   videoTitle: string | null;
+  commentId: string | null;
+  commentBody: string | null;
   reason: ReportReason;
   detail: string | null;
   status: ReportStatus;
@@ -105,4 +108,24 @@ export interface Challenge {
   entries: number;
   endsAt: string | null;
   accent: "purple" | "blue" | "pink";
+}
+
+// --- Direct messages -------------------------------------------------------
+
+export interface DirectMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  other: Pick<
+    User,
+    "id" | "username" | "displayName" | "avatarUrl" | "verified" | "badges"
+  >;
+  lastMessage: string | null;
+  lastMessageAt: string;
 }
