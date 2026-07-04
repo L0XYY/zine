@@ -20,9 +20,9 @@ export function MobileTopBar({ transparent = false }: { transparent?: boolean })
       <Logo />
       <div className="flex items-center gap-2">
         <Link
-          href="/trending"
+          href="/search"
           className="ring-focus grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10"
-          aria-label="Search Hot Loops"
+          aria-label="Search Ziners"
         >
           <Search className="h-5 w-5" />
         </Link>

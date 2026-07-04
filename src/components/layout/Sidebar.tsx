@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogIn, LogOut } from "lucide-react";
+import { LogIn, LogOut, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isAdminRole } from "@/lib/constants";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -28,8 +28,17 @@ export function Sidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col gap-6 border-r border-white/5 px-4 py-6 lg:flex">
-      <div className="px-2">
-        <Logo />
+      <div className="space-y-4">
+        <div className="px-2">
+          <Logo />
+        </div>
+        <Link
+          href="/search"
+          className="ring-focus flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-slate-400 transition-colors hover:border-white/20 hover:text-white"
+        >
+          <Search className="h-4 w-4" />
+          Search Ziners
+        </Link>
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">
