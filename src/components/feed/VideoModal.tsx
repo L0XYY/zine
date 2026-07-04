@@ -9,6 +9,7 @@ import { markViewed } from "@/lib/data";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
 import { CategoryPill } from "@/components/ui/CategoryPill";
+import { HashtagText } from "@/components/ui/HashtagText";
 import { VideoPlayer } from "./VideoPlayer";
 import { ActionRail } from "./ActionRail";
 import type { Video } from "@/lib/types";
@@ -80,7 +81,7 @@ export function VideoModal({
                 </span>
               </Link>
               <p className="line-clamp-2 text-sm text-slate-100 drop-shadow">
-                {video.caption ?? video.title}
+                <HashtagText text={video.caption ?? video.title} />
               </p>
               <div className="flex items-center gap-2 text-xs text-slate-300">
                 <CategoryPill category={video.category} />

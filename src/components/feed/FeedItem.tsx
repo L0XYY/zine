@@ -7,6 +7,7 @@ import { incrementLoops, markViewed } from "@/lib/data";
 import { formatCount } from "@/lib/utils";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
 import { CategoryPill } from "@/components/ui/CategoryPill";
+import { HashtagText } from "@/components/ui/HashtagText";
 import { Avatar } from "@/components/ui/Avatar";
 import { VideoPlayer } from "./VideoPlayer";
 import { ActionRail } from "./ActionRail";
@@ -79,7 +80,7 @@ export function FeedItem({
               </div>
 
               <p className="line-clamp-2 text-sm text-slate-100 drop-shadow">
-                {video.caption ?? video.title}
+                <HashtagText text={video.caption ?? video.title} />
               </p>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">

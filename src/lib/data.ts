@@ -98,6 +98,25 @@ export async function fetchVideosByChallenge(slug: string): Promise<Video[]> {
   return (data ?? []).map(withCounts);
 }
 
+export async function fetchVideosByTag(tag: string): Promise<Video[]> {
+  const clean = tag.replace(/[^A-Za-z0-9_]/g, "").toLowerCase();
+  const client = sb();
+  if (!client) {
+    return local
+      .allVideos()
+      .filter((v) => (v.caption ?? "").toLowerCase().includes(`#${clean}`));
+  }
+  const { data, error } = await client
+    .from("videos")
+    .select(VIDEO_SELECT)
+    .ilike("caption", `%#${clean}%`)
+    .eq("is_deleted", false)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) return [];
+  return (data ?? []).map(withCounts);
+}
+
 // --- Users (reads) ---------------------------------------------------------
 
 export async function fetchUserByUsername(
@@ -112,17 +131,17 @@ export async function fetchUserByUsername(
     .maybeSingle();
   if (error || !data) return null;
   const user = rowToUser(data);
-  const [{ count: followers }, { count: following }] = await Promise.all([
-    client
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("following_id", user.id),
-    client
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("follower_id", user.id),
+  // Count by fetching the rows — deterministic, unlike a flaky head-count that
+  // can return null and silently show 0. Falls back to the stored value.
+  const [followerRes, followingRes] = await Promise.all([
+    client.from("follows").select("follower_id").eq("following_id", user.id),
+    client.from("follows").select("following_id").eq("follower_id", user.id),
   ]);
-  return { ...user, followers: followers ?? 0, following: following ?? 0 };
+  return {
+    ...user,
+    followers: followerRes.error ? user.followers : followerRes.data.length,
+    following: followingRes.error ? user.following : followingRes.data.length,
+  };
 }
 
 export async function searchUsers(query: string): Promise<User[]> {

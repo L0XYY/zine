@@ -190,6 +190,12 @@ export function ProfileView({ username }: { username: string }) {
           </span>
           <span>
             <span className="font-bold text-white">
+              {formatCount(zines.reduce((a, v) => a + v.loops, 0))}
+            </span>{" "}
+            <span className="text-slate-400">loops</span>
+          </span>
+          <span>
+            <span className="font-bold text-white">
               {formatCount(resolved.followers)}
             </span>{" "}
             <span className="text-slate-400">followers</span>
