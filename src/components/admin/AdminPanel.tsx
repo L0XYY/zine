@@ -8,6 +8,7 @@ import {
   Flag,
   LayoutDashboard,
   MessageSquare,
+  RotateCcw,
   Search,
   ShieldCheck,
   Star,
@@ -129,6 +130,33 @@ export function AdminPanel() {
     patchUser(u.id, { role });
     void adminUpdateUser(u.id, { role });
     toast(`@${u.username} is now ${ROLE_LABEL[role]}`, "success");
+  };
+
+  // Follower "boost" — a manual amount added on top of real follows.
+  const setFollowerBoost = (u: User, n: number) => {
+    const boost = Math.max(0, Math.floor(n) || 0);
+    if (boost === u.followers) return;
+    patchUser(u.id, { followers: boost });
+    void adminUpdateUser(u.id, { followers: boost });
+    toast(`Set @${u.username}'s follower boost to ${boost}`, "success");
+  };
+
+  const resetProfile = (u: User) => {
+    patchUser(u.id, {
+      followers: 0,
+      following: 0,
+      bio: null,
+      avatarUrl: null,
+      bannerUrl: null,
+    });
+    void adminUpdateUser(u.id, {
+      followers: 0,
+      following: 0,
+      bio: null,
+      avatar_url: null,
+      banner_url: null,
+    });
+    toast(`Reset @${u.username}'s profile`, "info");
   };
 
   // --- video actions ---
@@ -260,6 +288,8 @@ export function AdminPanel() {
               user={u}
               onToggleBadge={(k) => toggleBadge(u, k)}
               onSetRole={(r) => setUserRole(u, r)}
+              onSetFollowerBoost={(n) => setFollowerBoost(u, n)}
+              onReset={() => resetProfile(u)}
               onBan={() => toggleBan(u)}
             />
           ))}
@@ -416,11 +446,15 @@ function UserRow({
   user,
   onToggleBadge,
   onSetRole,
+  onSetFollowerBoost,
+  onReset,
   onBan,
 }: {
   user: User;
   onToggleBadge: (kind: BadgeKind) => void;
   onSetRole: (role: Role) => void;
+  onSetFollowerBoost: (n: number) => void;
+  onReset: () => void;
   onBan: () => void;
 }) {
   const badgeKinds = Object.keys(BADGES) as BadgeKind[];
@@ -476,6 +510,26 @@ function UserRow({
             </button>
           );
         })}
+        <label
+          className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1"
+          title="Bonus followers added on top of real ones"
+        >
+          <span className="text-[10px] text-slate-500">+flwrs</span>
+          <input
+            type="number"
+            min={0}
+            defaultValue={user.followers}
+            key={user.followers}
+            onBlur={(e) => onSetFollowerBoost(Number(e.target.value))}
+            className="ring-focus h-5 w-14 rounded bg-transparent text-xs text-white focus:outline-none"
+          />
+        </label>
+        <AdminAction
+          onClick={onReset}
+          danger
+          icon={<RotateCcw className="h-4 w-4" />}
+          label="Reset"
+        />
         <AdminAction
           onClick={onBan}
           danger

@@ -131,17 +131,40 @@ export async function fetchUserByUsername(
     .maybeSingle();
   if (error || !data) return null;
   const user = rowToUser(data);
-  // Count by fetching the rows — deterministic, unlike a flaky head-count that
-  // can return null and silently show 0. Falls back to the stored value.
+  // Displayed count = real follow rows (deterministic) + a staff "boost" stored
+  // in the profiles.followers/following columns (adjustable from the admin panel).
+  const boostF = Math.max(0, user.followers);
+  const boostG = Math.max(0, user.following);
   const [followerRes, followingRes] = await Promise.all([
     client.from("follows").select("follower_id").eq("following_id", user.id),
     client.from("follows").select("following_id").eq("follower_id", user.id),
   ]);
   return {
     ...user,
-    followers: followerRes.error ? user.followers : followerRes.data.length,
-    following: followingRes.error ? user.following : followingRes.data.length,
+    followers: (followerRes.error ? 0 : followerRes.data.length) + boostF,
+    following: (followingRes.error ? 0 : followingRes.data.length) + boostG,
   };
+}
+
+/** Real follower/following counts for a set of users, from the follows table. */
+async function followCountMap(
+  client: NonNullable<ReturnType<typeof sb>>,
+): Promise<Map<string, { followers: number; following: number }>> {
+  const map = new Map<string, { followers: number; following: number }>();
+  const { data } = await client
+    .from("follows")
+    .select("follower_id, following_id")
+    .limit(10000);
+  const bump = (id: string, key: "followers" | "following") => {
+    const c = map.get(id) ?? { followers: 0, following: 0 };
+    c[key]++;
+    map.set(id, c);
+  };
+  for (const row of (data ?? []) as { follower_id: string; following_id: string }[]) {
+    bump(row.following_id, "followers");
+    bump(row.follower_id, "following");
+  }
+  return map;
 }
 
 export async function searchUsers(query: string): Promise<User[]> {
@@ -168,7 +191,16 @@ export async function searchUsers(query: string): Promise<User[]> {
     console.error("searchUsers", error.message);
     return [];
   }
-  return (data ?? []).map(rowToUser);
+  const users = (data ?? []).map(rowToUser);
+  const counts = await followCountMap(client);
+  return users.map((u) => {
+    const c = counts.get(u.id) ?? { followers: 0, following: 0 };
+    return {
+      ...u,
+      followers: c.followers + Math.max(0, u.followers),
+      following: c.following + Math.max(0, u.following),
+    };
+  });
 }
 
 // --- Comments --------------------------------------------------------------
