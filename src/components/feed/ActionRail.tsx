@@ -1,14 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Flag, Heart, MessageCircle, Repeat2, Share2 } from "lucide-react";
+import {
+  Bookmark,
+  Flag,
+  Heart,
+  MessageCircle,
+  Repeat2,
+  Share2,
+} from "lucide-react";
 import { cn, formatCount } from "@/lib/utils";
 import { isLiked, toggleLike, subscribeInteractions } from "@/lib/interactions";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isSaved, toggleSave, subscribeSaves } from "@/lib/bookmarks";
+import { isRezined, toggleRezine } from "@/lib/rezines";
+import { notify, toActor } from "@/lib/notifications";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReportModal } from "./ReportModal";
+import { videoShareUrl } from "@/lib/share";
 import type { Video } from "@/lib/types";
 
 function RailButton({
@@ -59,15 +71,39 @@ export function ActionRail({
   const toast = useToast();
   const { user } = useAuth();
   const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(video.likesCount);
+  const [commentCount, setCommentCount] = useState(video.commentsCount);
+  const [saved, setSaved] = useState(false);
   const [rezined, setRezined] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  // Base like count *excluding* the current user, captured once. In Supabase
+  // mode video.likesCount is a COUNT that already includes the user's like when
+  // present, so subtract it; in local/demo mode the base never counts the user.
+  // The displayed count then stays correct however the like is toggled (rail
+  // button, or double-tap on the video).
+  const baseLikes = useRef(
+    Math.max(
+      0,
+      video.likesCount -
+        (isSupabaseConfigured() && isLiked(video.id) ? 1 : 0),
+    ),
+  );
 
   useEffect(() => {
-    const sync = () => setLiked(isLiked(video.id));
+    const sync = () => {
+      setLiked(isLiked(video.id));
+      setRezined(isRezined(video.id));
+    };
     sync();
     return subscribeInteractions(sync);
+  }, [video.id]);
+
+  const likeCount = baseLikes.current + (liked ? 1 : 0);
+
+  useEffect(() => {
+    const sync = () => setSaved(isSaved(video.id));
+    sync();
+    return subscribeSaves(sync);
   }, [video.id]);
 
   const onSpark = () => {
@@ -77,20 +113,52 @@ export function ActionRail({
     }
     const nowLiked = toggleLike(video.id);
     setLiked(nowLiked);
-    setLikeCount((c) => Math.max(0, c + (nowLiked ? 1 : -1)));
-    if (nowLiked) toast("Sparked ⚡", "success");
+    if (nowLiked) {
+      toast("Sparked ⚡", "success");
+      notify({
+        recipientId: video.author.id,
+        actor: toActor(user),
+        kind: "spark",
+        videoId: video.id,
+        videoTitle: video.title,
+      });
+    }
+  };
+
+  const onSave = () => {
+    if (!user) {
+      toast("Log in to save Zines", "info");
+      return;
+    }
+    const nowSaved = toggleSave(video.id);
+    setSaved(nowSaved);
+    toast(nowSaved ? "Saved to your collection 🔖" : "Removed from Saved", "success");
   };
 
   const onRezine = () => {
-    setRezined((r) => !r);
-    toast(rezined ? "Removed Rezine" : "Rezined — shared to your loop", "success");
+    if (!user) {
+      toast("Log in to Rezine", "info");
+      return;
+    }
+    const nowRezined = toggleRezine(video.id);
+    setRezined(nowRezined);
+    toast(
+      nowRezined ? "Rezined — shared to your loop" : "Removed Rezine",
+      "success",
+    );
+    if (nowRezined) {
+      notify({
+        recipientId: video.author.id,
+        actor: toActor(user),
+        kind: "rezine",
+        videoId: video.id,
+        videoTitle: video.title,
+      });
+    }
   };
 
   const onShare = async () => {
-    const url =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/feed`
-        : "https://zine.app/feed";
+    const url = videoShareUrl(video.id);
     try {
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({ title: `${video.title} · Zine`, url });
@@ -124,7 +192,7 @@ export function ActionRail({
         <RailButton
           icon={<MessageCircle className="h-6 w-6" />}
           label="Comments"
-          count={video.commentsCount}
+          count={commentCount}
           onClick={() => setCommentsOpen(true)}
         />
 
@@ -135,6 +203,20 @@ export function ActionRail({
             onClick={onRezine}
             active={rezined}
             activeClass="bg-emerald-500/20 text-emerald-300"
+          />
+        </motion.div>
+
+        <motion.div whileTap={{ scale: 0.85 }}>
+          <RailButton
+            icon={
+              <Bookmark
+                className={cn("h-6 w-6", saved && "fill-zine-mint text-zine-mint")}
+              />
+            }
+            label="Save"
+            onClick={onSave}
+            active={saved}
+            activeClass="bg-zine-mint/20"
           />
         </motion.div>
 
@@ -155,6 +237,7 @@ export function ActionRail({
         video={video}
         open={commentsOpen}
         onClose={() => setCommentsOpen(false)}
+        onCountChange={(d) => setCommentCount((c) => Math.max(0, c + d))}
       />
       <ReportModal
         video={video}

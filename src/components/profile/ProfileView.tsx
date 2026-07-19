@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import {
+  Bookmark,
   CalendarDays,
   Clapperboard,
   Heart,
   MessageSquare,
+  Repeat2,
   Settings as SettingsIcon,
   UserX,
 } from "lucide-react";
 import { fetchUserByUsername, fetchVideos, fetchVideosByUser } from "@/lib/data";
 import { isLiked } from "@/lib/interactions";
+import { savedVideoIds } from "@/lib/bookmarks";
+import { rezinedVideoIds } from "@/lib/rezines";
 import { cn, formatCount } from "@/lib/utils";
 import { ROLE_LABEL } from "@/lib/constants";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -25,13 +28,15 @@ import { FollowButton } from "@/components/feed/FollowButton";
 import { FullSpinner } from "@/components/ui/Spinner";
 import type { User, Video } from "@/lib/types";
 
-type Tab = "zines" | "sparked";
+type Tab = "zines" | "rezined" | "sparked" | "saved";
 
 export function ProfileView({ username }: { username: string }) {
   const { user: me, loading } = useAuth();
   const [resolved, setResolved] = useState<User | null | undefined>(undefined);
   const [zines, setZines] = useState<Video[]>([]);
   const [sparked, setSparked] = useState<Video[]>([]);
+  const [saved, setSaved] = useState<Video[]>([]);
+  const [rezined, setRezined] = useState<Video[]>([]);
   const [tab, setTab] = useState<Tab>("zines");
 
   const isMeRoute = username === "me";
@@ -52,9 +57,17 @@ export function ProfileView({ username }: { username: string }) {
         const z = await fetchVideosByUser(target.id);
         if (!alive) return;
         setZines(z);
-        const all = await fetchVideos();
-        if (!alive) return;
-        setSparked(all.filter((v) => isLiked(v.id)));
+        // Own-profile collections (sparked / saved / rezined) are client-side.
+        const ownProfile = !!me && me.id === target.id;
+        if (ownProfile) {
+          const all = await fetchVideos();
+          if (!alive) return;
+          setSparked(all.filter((v) => isLiked(v.id)));
+          const savedSet = new Set(savedVideoIds());
+          const rezinedSet = new Set(rezinedVideoIds());
+          setSaved(all.filter((v) => savedSet.has(v.id)));
+          setRezined(all.filter((v) => rezinedSet.has(v.id)));
+        }
       }
     })();
     return () => {
@@ -95,7 +108,14 @@ export function ProfileView({ username }: { username: string }) {
     );
   }
 
-  const shown = tab === "zines" ? zines : sparked;
+  const shown =
+    tab === "zines"
+      ? zines
+      : tab === "rezined"
+        ? rezined
+        : tab === "saved"
+          ? saved
+          : sparked;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -216,20 +236,38 @@ export function ProfileView({ username }: { username: string }) {
       </div>
 
       {/* Tabs */}
-      <div className="mt-8 flex gap-1 border-b border-white/10">
+      <div className="mt-8 flex gap-1 overflow-x-auto border-b border-white/10 no-scrollbar">
         <TabButton
           active={tab === "zines"}
           onClick={() => setTab("zines")}
           icon={<Clapperboard className="h-4 w-4" />}
           label="Zines"
+          count={zines.length}
         />
         {isOwn && (
-          <TabButton
-            active={tab === "sparked"}
-            onClick={() => setTab("sparked")}
-            icon={<Heart className="h-4 w-4" />}
-            label="Sparked"
-          />
+          <>
+            <TabButton
+              active={tab === "rezined"}
+              onClick={() => setTab("rezined")}
+              icon={<Repeat2 className="h-4 w-4" />}
+              label="Rezined"
+              count={rezined.length}
+            />
+            <TabButton
+              active={tab === "sparked"}
+              onClick={() => setTab("sparked")}
+              icon={<Heart className="h-4 w-4" />}
+              label="Sparked"
+              count={sparked.length}
+            />
+            <TabButton
+              active={tab === "saved"}
+              onClick={() => setTab("saved")}
+              icon={<Bookmark className="h-4 w-4" />}
+              label="Saved"
+              count={saved.length}
+            />
+          </>
         )}
       </div>
 
@@ -238,31 +276,25 @@ export function ProfileView({ username }: { username: string }) {
           <VideoGrid videos={shown} />
         ) : (
           <EmptyState
-            icon={
-              tab === "zines" ? (
-                <Clapperboard className="h-7 w-7" />
-              ) : (
-                <Heart className="h-7 w-7" />
-              )
-            }
+            icon={EMPTY_META[tab].icon}
             title={
               tab === "zines"
                 ? isOwn
                   ? "You haven't posted a Zine yet"
                   : `@${resolved.username} hasn't posted yet`
-                : "No Sparks yet"
+                : EMPTY_META[tab].title
             }
             description={
               tab === "zines"
                 ? isOwn
                   ? "Your loops will show up here. Drop your first 6-second Zine."
                   : "When they post their first loop, it'll show up here."
-                : "Videos you Spark will collect here for easy rewatching."
+                : EMPTY_META[tab].description
             }
             action={
               tab === "zines" && isOwn
                 ? { label: "Upload a Zine", href: "/upload" }
-                : tab === "sparked"
+                : tab !== "zines"
                   ? { label: "Explore the feed", href: "/feed" }
                   : undefined
             }
@@ -273,27 +305,60 @@ export function ProfileView({ username }: { username: string }) {
   );
 }
 
+const EMPTY_META: Record<
+  Tab,
+  { icon: React.ReactNode; title: string; description: string }
+> = {
+  zines: {
+    icon: <Clapperboard className="h-7 w-7" />,
+    title: "No Zines yet",
+    description: "Loops will show up here.",
+  },
+  rezined: {
+    icon: <Repeat2 className="h-7 w-7" />,
+    title: "No Rezines yet",
+    description: "Loops you Rezine will reshare onto your profile.",
+  },
+  sparked: {
+    icon: <Heart className="h-7 w-7" />,
+    title: "No Sparks yet",
+    description: "Videos you Spark will collect here for easy rewatching.",
+  },
+  saved: {
+    icon: <Bookmark className="h-7 w-7" />,
+    title: "Nothing saved yet",
+    description: "Bookmark any Zine and it'll show up here.",
+  },
+};
+
 function TabButton({
   active,
   onClick,
   icon,
   label,
+  count,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  count?: number;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+        "relative flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
         active ? "text-white" : "text-slate-400 hover:text-white",
       )}
     >
       {icon}
       {label}
+      {count !== undefined && count > 0 && (
+        <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+          {count}
+        </span>
+      )}
       {active && (
         <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-zine-gradient" />
       )}

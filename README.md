@@ -18,14 +18,27 @@ Dark, glassmorphic, mobile-first.
   creator badges, challenges, and CTAs.
 - **Vertical loop feed** (`/feed`) — full-screen swipe on mobile, focused card
   feed with left sidebar + right trending panel on desktop. Auto-looping,
-  loop-counting player with shared mute.
+  loop-counting player with shared mute. **Double-tap to Spark** (heart burst)
+  and **keyboard shortcuts** (`J`/`K` or `↑`/`↓` to move, `M` to mute).
 - **Upload** (`/upload`) — drag & drop with real client-side validation: file
   type, size cap, and **6–10s duration enforcement** (reads the actual video
   metadata), plus an auto-captured thumbnail.
 - **Auth** (`/login`, `/signup`) — username system, display name, and one-click
   demo accounts.
+- **Direct messages** (`/messages`, `/messages/[username]`) — conversation inbox
+  with unread badges, a **New message** search picker, day-grouped threads,
+  Enter-to-send, and live polling. Backed by Supabase when configured, otherwise
+  a browser-local store — so **DMs work out of the box** (see Messaging below).
+- **Notifications** (`/notifications`) — Sparks, comments, follows, Rezines and
+  messages, with an unread bell badge in the nav.
+- **Saved** (`/saved`) — bookmark any Zine and rewatch it later; also a Saved tab
+  on your profile.
+- **Zine permalinks** (`/z/[id]`) — every loop has its own shareable page; Share
+  copies a direct link.
 - **Profiles** (`/u/[username]`) — banner, avatar, bio, badges, follower counts,
-  Zines + Sparked tabs.
+  and Zines · Rezined · Sparked · Saved tabs.
+- **Search** (`/search`) — find **Ziners and Zines** (users and videos) by name,
+  @username, or hashtag, across two tabs.
 - **Settings** (`/settings`) — edit display name, username, bio, avatar & banner.
 - **Hot Loops** (`/trending`) — trending Zines ranked by loops + Sparks, filtered
   by category.
@@ -132,8 +145,26 @@ valid Supabase config via `src/lib/supabase/config.ts` and the data seams live i
 | Auth        | `src/components/providers/AuthProvider.tsx`         | `supabase.auth.*` + `profiles` query |
 | Content     | `src/lib/local-store.ts`                            | Prisma / Supabase queries            |
 | Likes/Follow| `src/lib/interactions.ts`                           | `likes` / `follows` tables           |
+| Messages    | `src/lib/messages-store.ts` · `src/lib/data.ts`     | `conversations` / `messages` tables (`supabase/messaging.sql`) |
+| Comments    | `src/lib/comments-store.ts`                         | `comments` table                     |
+| Saves       | `src/lib/bookmarks.ts`                              | a `saves` table                      |
+| Rezines     | `src/lib/rezines.ts`                                | a `rezines` table                    |
+| Notifications | `src/lib/notifications.ts`                        | a `notifications` table              |
 | Reports     | `src/app/api/reports/route.ts`                      | `supabase.from("reports").insert`    |
 | Route guard | `src/middleware.ts`                                 | already Supabase-aware               |
+
+### Messaging
+
+DMs work with **zero setup**. When Supabase is configured, `src/lib/data.ts`
+probes once per session for the `conversations`/`messages` tables; if they're
+missing it transparently falls back to `src/lib/messages-store.ts` (browser
+`localStorage`), so the whole messaging UI is functional in demo mode and in a
+fresh Supabase project alike. To enable real, cross-device messaging, run
+`supabase/messaging.sql` in the Supabase SQL editor — the app then upgrades to
+the Supabase-backed path automatically, no code change required.
+
+> Notifications, Saved, and Rezines are client-side (per browser) by design —
+> they're a clean seam to back with real tables later (see the table above).
 
 ---
 

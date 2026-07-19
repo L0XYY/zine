@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Eye, Repeat2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Eye, Heart, Repeat2 } from "lucide-react";
 import { incrementLoops, markViewed } from "@/lib/data";
+import { isLiked, toggleLike } from "@/lib/interactions";
+import { notify, toActor } from "@/lib/notifications";
 import { formatCount } from "@/lib/utils";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { useToast } from "@/components/providers/ToastProvider";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
 import { CategoryPill } from "@/components/ui/CategoryPill";
 import { HashtagText } from "@/components/ui/HashtagText";
@@ -21,8 +26,11 @@ export function FeedItem({
   video: Video;
   active: boolean;
 }) {
+  const { user } = useAuth();
+  const toast = useToast();
   const [loops, setLoops] = useState(video.loops);
   const [views, setViews] = useState(video.views);
+  const [burstKey, setBurstKey] = useState(0);
   const lastLoopWrite = useRef(0);
   const viewedRef = useRef(false);
 
@@ -44,12 +52,53 @@ export function FeedItem({
     }
   };
 
+  // Double-tap / double-click to Spark (always likes, never unlikes), with a
+  // heart burst — the familiar short-video gesture. Ignored when the tap lands
+  // on a control (rail button, author link) so those keep their own behavior.
+  const handleDoubleTap = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("a,button")) return;
+    if (!user) {
+      toast("Log in to Spark loops", "info");
+      return;
+    }
+    setBurstKey((k) => k + 1);
+    if (!isLiked(video.id)) {
+      toggleLike(video.id);
+      notify({
+        recipientId: video.author.id,
+        actor: toActor(user),
+        kind: "spark",
+        videoId: video.id,
+        videoTitle: video.title,
+      });
+    }
+  };
+
   return (
     <section className="relative flex h-full w-full snap-start items-center justify-center py-3">
       <div className="relative mx-auto flex h-full max-h-[calc(100dvh-1.5rem)] w-full max-w-[440px] items-stretch">
         {/* Video card */}
-        <div className="relative w-full">
+        <div
+          className="relative w-full"
+          onDoubleClick={handleDoubleTap}
+        >
           <VideoPlayer video={video} active={active} onLoop={handleLoop} />
+
+          {/* Heart burst on double-tap */}
+          <AnimatePresence>
+            {burstKey > 0 && (
+              <motion.div
+                key={burstKey}
+                initial={{ scale: 0.3, opacity: 0 }}
+                animate={{ scale: 1.1, opacity: 1 }}
+                exit={{ scale: 1.4, opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="pointer-events-none absolute inset-0 z-20 grid place-items-center"
+              >
+                <Heart className="h-24 w-24 fill-rose-500 text-rose-500 drop-shadow-[0_0_20px_rgba(244,63,94,0.6)]" />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Gradient scrim for legibility */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 rounded-b-3xl bg-gradient-to-t from-black/80 via-black/30 to-transparent" />

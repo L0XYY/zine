@@ -35,13 +35,11 @@ export function timeAgo(iso: string): string {
   ];
   let value = secs;
   let unit = "s";
-  let divisor = 1;
   for (const [step, label] of units) {
     if (value < step) {
       unit = label;
       break;
     }
-    divisor = step;
     value = value / step;
     unit = label;
   }

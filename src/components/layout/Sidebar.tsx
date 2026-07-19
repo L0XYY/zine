@@ -6,6 +6,7 @@ import { LogIn, LogOut, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isAdminRole } from "@/lib/constants";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useUnreadCounts } from "@/lib/use-unread";
 import { Logo } from "@/components/ui/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedCheck } from "@/components/ui/CreatorBadge";
@@ -15,9 +16,12 @@ import { NAV_ITEMS, type NavItem } from "./nav-items";
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const unread = useUnreadCounts();
 
   const items = NAV_ITEMS.filter(
-    (item) => !item.adminOnly || isAdminRole(user?.role),
+    (item) =>
+      (!item.adminOnly || isAdminRole(user?.role)) &&
+      (!item.authOnly || !!user),
   );
 
   const hrefFor = (item: NavItem) =>
@@ -58,6 +62,8 @@ export function Sidebar() {
             );
           }
 
+          const badgeCount = item.unread ? unread[item.unread] : 0;
+
           return (
             <Link
               key={item.label}
@@ -72,16 +78,28 @@ export function Sidebar() {
               {active && (
                 <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-zine-gradient" />
               )}
-              <Icon
-                className={cn(
-                  "h-5 w-5 transition-colors",
-                  active ? "text-zine-green" : "group-hover:text-white",
+              <span className="relative">
+                <Icon
+                  className={cn(
+                    "h-5 w-5 transition-colors",
+                    active ? "text-zine-green" : "group-hover:text-white",
+                  )}
+                />
+                {badgeCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-zine-gradient px-1 text-[10px] font-bold text-white">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
                 )}
-              />
+              </span>
               {item.label}
               {item.adminOnly && (
                 <span className="ml-auto rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-300">
                   STAFF
+                </span>
+              )}
+              {badgeCount > 0 && (
+                <span className="ml-auto rounded-full bg-zine-green/15 px-2 py-0.5 text-[10px] font-bold text-zine-green">
+                  {badgeCount > 99 ? "99+" : badgeCount}
                 </span>
               )}
             </Link>

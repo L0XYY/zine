@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard } from "lucide-react";
 import { fetchVideos } from "@/lib/data";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FeedItemSkeleton } from "@/components/ui/Skeleton";
 import { FeedItem } from "./FeedItem";
+import { toggleSharedMute } from "./VideoPlayer";
 import type { Category, Video } from "@/lib/types";
 
 export function Feed({
@@ -56,6 +57,33 @@ export function Feed({
     itemRefs.current.forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
   }, [videos.length]);
+
+  const scrollToIndex = useCallback((idx: number) => {
+    const el = itemRefs.current[idx];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  // Keyboard shortcuts: J/↓ next · K/↑ prev · M mute. Ignored while typing.
+  useEffect(() => {
+    if (!videos.length) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+      if (t?.isContentEditable) return;
+      const last = videos.length - 1;
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        scrollToIndex(Math.min(last, activeIndex + 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        scrollToIndex(Math.max(0, activeIndex - 1));
+      } else if (e.key === "m" || e.key === "M") {
+        toggleSharedMute();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [videos.length, activeIndex, scrollToIndex]);
 
   if (all === null) {
     return (

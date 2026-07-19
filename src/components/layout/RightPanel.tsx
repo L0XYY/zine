@@ -48,7 +48,7 @@ export function RightPanel() {
           {trending.map((v, i) => (
             <li key={v.id}>
               <Link
-                href="/trending"
+                href={`/z/${v.id}`}
                 className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/5"
               >
                 <span className="w-4 text-center font-display text-sm font-bold text-slate-500 group-hover:text-zine-green">

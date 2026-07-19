@@ -7,12 +7,55 @@ import { resolveMediaUrl } from "@/lib/media-store";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Video } from "@/lib/types";
 
-// Shared mute preference so unmuting once sticks across the whole feed.
-let sharedMuted = true;
+// Shared mute preference so a mute/unmute choice sticks across the whole feed.
+// Default is SOUND ON — Zines don't open muted. (Browsers still block unmuted
+// autoplay until the first interaction; the player falls back to a muted play
+// and un-mutes on the first gesture — see below — so audio starts as soon as
+// it's allowed instead of the app forcing everything muted.)
+let sharedMuted = false;
 const muteListeners = new Set<(m: boolean) => void>();
 function setSharedMuted(m: boolean) {
   sharedMuted = m;
   muteListeners.forEach((l) => l(m));
+}
+
+/** Flip the feed-wide mute preference (used by the keyboard shortcut). */
+export function toggleSharedMute() {
+  setSharedMuted(!sharedMuted);
+}
+
+// --- Autoplay audio unlock --------------------------------------------------
+// Browsers reject unmuted autoplay until the user has interacted with the page.
+// When that happens we keep the Zine looping muted, then un-mute every waiting
+// player on the very first pointer/keyboard/touch gesture — so sound turns on
+// the instant it's permitted, without the app ever choosing to mute.
+const pendingUnmute = new Set<() => void>();
+let gestureBound = false;
+
+function runPendingUnmutes() {
+  pendingUnmute.forEach((fn) => fn());
+  pendingUnmute.clear();
+}
+
+function bindFirstGesture() {
+  if (gestureBound || typeof window === "undefined") return;
+  gestureBound = true;
+  const onGesture = () => {
+    window.removeEventListener("pointerdown", onGesture);
+    window.removeEventListener("keydown", onGesture);
+    window.removeEventListener("touchstart", onGesture);
+    gestureBound = false;
+    runPendingUnmutes();
+  };
+  window.addEventListener("pointerdown", onGesture, { passive: true });
+  window.addEventListener("keydown", onGesture);
+  window.addEventListener("touchstart", onGesture, { passive: true });
+}
+
+/** Queue a player to be un-muted on the next user gesture (if sound is wanted). */
+function unmuteOnFirstGesture(fn: () => void) {
+  pendingUnmute.add(fn);
+  bindFirstGesture();
 }
 
 export function VideoPlayer({
@@ -66,8 +109,25 @@ export function VideoPlayer({
     if (!el) return;
     el.muted = muted;
     if (active && status !== "error") {
-      const p = el.play();
-      if (p) p.then(() => setPaused(false)).catch(() => setPaused(true));
+      el.play()
+        .then(() => setPaused(false))
+        .catch(() => {
+          // Unmuted autoplay was blocked. Rather than sit paused, keep the loop
+          // going muted and un-mute the moment the user interacts — so the app
+          // never chooses to stay muted.
+          if (!el.muted) {
+            el.muted = true;
+            el.play()
+              .then(() => setPaused(false))
+              .catch(() => setPaused(true));
+            unmuteOnFirstGesture(() => {
+              const v = ref.current;
+              if (v && !sharedMuted) v.muted = false;
+            });
+          } else {
+            setPaused(true);
+          }
+        });
     } else {
       el.pause();
       el.currentTime = 0;

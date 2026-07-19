@@ -60,8 +60,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const classes = cn(base, variants[variant], sizes[size], className);
 
     if ("href" in props && props.href !== undefined) {
-      const { href, ...anchorRest } =
+      // Strip href from the spread (we pass props.href explicitly below).
+      const { href: _href, ...anchorRest } =
         rest as React.AnchorHTMLAttributes<HTMLAnchorElement>;
+      void _href;
       return (
         <Link href={props.href} className={classes} {...anchorRest}>
           {children}

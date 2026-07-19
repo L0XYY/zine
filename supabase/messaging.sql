@@ -1,6 +1,12 @@
 -- ===========================================================================
 -- Zine — Direct Messages (focused, idempotent). Run this ONE block in
 -- Supabase → SQL Editor → New query → Run. Safe to run more than once.
+--
+-- NOTE: Messaging works WITHOUT running this. The app (src/lib/data.ts) probes
+-- for these tables once per session and, if they don't exist, transparently
+-- falls back to a browser-local store (src/lib/messages-store.ts) so DMs work
+-- out of the box. Run this migration only when you want real, cross-device
+-- messaging backed by Supabase — the app then upgrades to it automatically.
 -- ===========================================================================
 
 create table if not exists public.conversations (

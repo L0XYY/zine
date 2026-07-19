@@ -12,7 +12,17 @@ import { isSupabaseConfigured, VIDEO_BUCKET } from "@/lib/supabase/config";
 import { rowToComment, rowToUser, rowToVideo } from "@/lib/supabase/mappers";
 import * as local from "@/lib/local-store";
 import { putMedia, MEDIA_PREFIX } from "@/lib/media-store";
-import { getCommentsForVideo as localComments } from "@/lib/mock-data";
+import {
+  localFetchConversations,
+  localFetchMessages,
+  localGetOrCreateConversation,
+  localSendMessage,
+} from "@/lib/messages-store";
+import {
+  localAddComment,
+  localCommentsForVideo,
+  localDeleteComment,
+} from "@/lib/comments-store";
 import type {
   BadgeKind,
   Category,
@@ -33,6 +43,7 @@ function sb() {
   return isSupabaseConfigured() ? getSupabaseBrowserClient() : null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function withCounts(row: any): Video {
   const v = rowToVideo(row);
   const likes = Array.isArray(row.likes) ? row.likes[0]?.count : undefined;
@@ -115,6 +126,41 @@ export async function fetchVideosByTag(tag: string): Promise<Video[]> {
     .limit(100);
   if (error) return [];
   return (data ?? []).map(withCounts);
+}
+
+export async function fetchVideoById(id: string): Promise<Video | null> {
+  const client = sb();
+  if (!client) return local.allVideos().find((v) => v.id === id) ?? null;
+  const { data, error } = await client
+    .from("videos")
+    .select(VIDEO_SELECT)
+    .eq("id", id)
+    .eq("is_deleted", false)
+    .maybeSingle();
+  if (error || !data) return null;
+  return withCounts(data);
+}
+
+/** Fetch a set of videos by id, returned in the same order as `ids`. */
+export async function fetchVideosByIds(ids: string[]): Promise<Video[]> {
+  if (ids.length === 0) return [];
+  const order = new Map(ids.map((id, i) => [id, i]));
+  const client = sb();
+  if (!client) {
+    return local
+      .allVideos()
+      .filter((v) => order.has(v.id))
+      .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  }
+  const { data, error } = await client
+    .from("videos")
+    .select(VIDEO_SELECT)
+    .in("id", ids)
+    .eq("is_deleted", false);
+  if (error) return [];
+  return (data ?? [])
+    .map(withCounts)
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 // --- Users (reads) ---------------------------------------------------------
@@ -203,11 +249,41 @@ export async function searchUsers(query: string): Promise<User[]> {
   });
 }
 
+export async function searchVideos(query: string): Promise<Video[]> {
+  const raw = query.trim();
+  const client = sb();
+  if (!client) {
+    const q = raw.toLowerCase();
+    return local
+      .allVideos()
+      .filter(
+        (v) =>
+          !q ||
+          v.title.toLowerCase().includes(q) ||
+          (v.caption ?? "").toLowerCase().includes(q) ||
+          v.author.username.toLowerCase().includes(q),
+      );
+  }
+  const q = raw.replace(/[,()*:%\\]/g, "").trim();
+  let req = client
+    .from("videos")
+    .select(VIDEO_SELECT)
+    .eq("is_deleted", false)
+    .limit(60);
+  if (q) req = req.or(`title.ilike.*${q}*,caption.ilike.*${q}*`);
+  const { data, error } = await req.order("created_at", { ascending: false });
+  if (error) {
+    console.error("searchVideos", error.message);
+    return [];
+  }
+  return (data ?? []).map(withCounts);
+}
+
 // --- Comments --------------------------------------------------------------
 
 export async function fetchComments(videoId: string): Promise<Comment[]> {
   const client = sb();
-  if (!client) return localComments(videoId);
+  if (!client) return localCommentsForVideo(videoId);
   const { data, error } = await client
     .from("comments")
     .select("*, author:profiles(*)")
@@ -225,23 +301,7 @@ export async function addComment(
 ): Promise<Comment | null> {
   const client = sb();
   const trimmed = body.trim().slice(0, 500);
-  if (!client) {
-    return {
-      id: `local_${Date.now()}`,
-      videoId,
-      userId: author.id,
-      author: {
-        id: author.id,
-        username: author.username,
-        displayName: author.displayName,
-        avatarUrl: author.avatarUrl,
-        verified: author.verified,
-        badges: author.badges,
-      },
-      body: trimmed,
-      createdAt: new Date().toISOString(),
-    };
-  }
+  if (!client) return localAddComment(videoId, trimmed, author);
   const { data, error } = await client
     .from("comments")
     .insert({ video_id: videoId, user_id: author.id, body: trimmed })
@@ -263,7 +323,7 @@ export async function loadLikedVideoIds(userId: string): Promise<string[]> {
     .from("likes")
     .select("video_id")
     .eq("user_id", userId);
-  return (data ?? []).map((r: any) => r.video_id as string);
+  return (data ?? []).map((r: { video_id: string }) => r.video_id);
 }
 
 export async function loadFollowingIds(userId: string): Promise<string[]> {
@@ -273,7 +333,7 @@ export async function loadFollowingIds(userId: string): Promise<string[]> {
     .from("follows")
     .select("following_id")
     .eq("follower_id", userId);
-  return (data ?? []).map((r: any) => r.following_id as string);
+  return (data ?? []).map((r: { following_id: string }) => r.following_id);
 }
 
 export async function setLike(videoId: string, liked: boolean, userId: string) {
@@ -376,7 +436,10 @@ export async function incrementLoops(videoId: string): Promise<void> {
 /** Soft-delete a comment (owner or staff — enforced by RLS). */
 export async function deleteComment(commentId: string): Promise<boolean> {
   const client = sb();
-  if (!client) return true;
+  if (!client) {
+    localDeleteComment(commentId);
+    return true;
+  }
   const { error } = await client
     .from("comments")
     .update({ is_deleted: true })
@@ -390,13 +453,53 @@ export async function deleteComment(commentId: string): Promise<boolean> {
 const CONVO_SELECT =
   "id, last_message, last_message_at, a:profiles!user_a(id,username,display_name,avatar_url,verified,badges), b:profiles!user_b(id,username,display_name,avatar_url,verified,badges)";
 
-export async function getOrCreateConversation(
-  otherUserId: string,
-  meId: string,
-): Promise<string | null> {
+/** Participant fields the messaging layer needs from a user. */
+type DMUser = Pick<
+  User,
+  "id" | "username" | "displayName" | "avatarUrl" | "verified" | "badges"
+>;
+
+// A Supabase project may not have the messaging tables (they ship separately in
+// supabase/messaging.sql). We probe once per session and, if they're missing,
+// transparently use the browser-local store so DMs always work.
+let dmBackend: "supabase" | "local" | null = null;
+
+function missingRelation(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  const code = err.code ?? "";
+  const msg = (err.message ?? "").toLowerCase();
+  return (
+    code === "PGRST205" ||
+    code === "PGRST202" ||
+    code === "42P01" ||
+    msg.includes("could not find the table") ||
+    msg.includes("does not exist") ||
+    msg.includes("schema cache")
+  );
+}
+
+/** Decide (once) whether DMs are backed by Supabase or the local store. */
+async function dmIsLocal(): Promise<boolean> {
+  if (dmBackend) return dmBackend === "local";
   const client = sb();
-  if (!client || otherUserId === meId) return null;
-  const [ua, ub] = [meId, otherUserId].sort();
+  if (!client) {
+    dmBackend = "local";
+    return true;
+  }
+  const { error } = await client.from("conversations").select("id").limit(1);
+  dmBackend = missingRelation(error) ? "local" : "supabase";
+  return dmBackend === "local";
+}
+
+export async function getOrCreateConversation(
+  other: DMUser,
+  me: DMUser,
+): Promise<string | null> {
+  if (!other || other.id === me.id) return null;
+  if (await dmIsLocal()) return localGetOrCreateConversation(other, me) || null;
+
+  const client = sb()!;
+  const [ua, ub] = [me.id, other.id].sort();
   const { data: existing } = await client
     .from("conversations")
     .select("id")
@@ -410,6 +513,10 @@ export async function getOrCreateConversation(
     .select("id")
     .single();
   if (error) {
+    if (missingRelation(error)) {
+      dmBackend = "local";
+      return localGetOrCreateConversation(other, me) || null;
+    }
     const { data: retry } = await client
       .from("conversations")
       .select("id")
@@ -453,14 +560,18 @@ function rowToMessage(r: any): DirectMessage {
 export async function fetchConversations(
   meId: string,
 ): Promise<Conversation[]> {
-  const client = sb();
-  if (!client) return [];
+  if (await dmIsLocal()) return localFetchConversations(meId);
+  const client = sb()!;
   const { data, error } = await client
     .from("conversations")
     .select(CONVO_SELECT)
     .or(`user_a.eq.${meId},user_b.eq.${meId}`)
     .order("last_message_at", { ascending: false });
   if (error) {
+    if (missingRelation(error)) {
+      dmBackend = "local";
+      return localFetchConversations(meId);
+    }
     console.error("fetchConversations", error.message);
     return [];
   }
@@ -470,15 +581,21 @@ export async function fetchConversations(
 export async function fetchMessages(
   conversationId: string,
 ): Promise<DirectMessage[]> {
-  const client = sb();
-  if (!client) return [];
+  if (await dmIsLocal()) return localFetchMessages(conversationId);
+  const client = sb()!;
   const { data, error } = await client
     .from("messages")
     .select("*")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .limit(300);
-  if (error) return [];
+  if (error) {
+    if (missingRelation(error)) {
+      dmBackend = "local";
+      return localFetchMessages(conversationId);
+    }
+    return [];
+  }
   return (data ?? []).map(rowToMessage);
 }
 
@@ -487,8 +604,8 @@ export async function sendMessage(
   senderId: string,
   body: string,
 ): Promise<DirectMessage | null> {
-  const client = sb();
-  if (!client) return null;
+  if (await dmIsLocal()) return localSendMessage(conversationId, senderId, body);
+  const client = sb()!;
   const { data, error } = await client
     .from("messages")
     .insert({
@@ -499,6 +616,10 @@ export async function sendMessage(
     .select("*")
     .single();
   if (error) {
+    if (missingRelation(error)) {
+      dmBackend = "local";
+      return localSendMessage(conversationId, senderId, body);
+    }
     console.error("sendMessage", error.message);
     return null;
   }
@@ -712,6 +833,7 @@ export async function adminFetchReports(): Promise<Report[]> {
       "*, reporter:profiles(username), video:videos(id,title), comment:comments(id,body)",
     )
     .order("created_at", { ascending: false });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
     id: r.id,
     reporterUsername: r.reporter?.username ?? "unknown",

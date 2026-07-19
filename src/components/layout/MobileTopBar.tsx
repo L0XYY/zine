@@ -1,13 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, Search } from "lucide-react";
+import { Bell, MessageSquare, Search } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useUnreadCounts } from "@/lib/use-unread";
 import { Logo } from "@/components/ui/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 
+function IconLink({
+  href,
+  label,
+  count,
+  children,
+}: {
+  href: string;
+  label: string;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="ring-focus relative grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10"
+      aria-label={label}
+    >
+      {children}
+      {!!count && count > 0 && (
+        <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-zine-gradient px-1 text-[10px] font-bold text-white">
+          {count > 9 ? "9+" : count}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 export function MobileTopBar({ transparent = false }: { transparent?: boolean }) {
   const { user } = useAuth();
+  const unread = useUnreadCounts();
 
   return (
     <header
@@ -18,22 +47,23 @@ export function MobileTopBar({ transparent = false }: { transparent?: boolean })
       }`}
     >
       <Logo />
-      <div className="flex items-center gap-2">
-        <Link
-          href="/search"
-          className="ring-focus grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10"
-          aria-label="Search Ziners"
-        >
+      <div className="flex items-center gap-1.5">
+        <IconLink href="/search" label="Search Ziners">
           <Search className="h-5 w-5" />
-        </Link>
+        </IconLink>
         {user && (
-          <Link
-            href="/messages"
-            className="ring-focus grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10"
-            aria-label="Messages"
-          >
-            <MessageSquare className="h-5 w-5" />
-          </Link>
+          <>
+            <IconLink
+              href="/notifications"
+              label="Notifications"
+              count={unread.notifications}
+            >
+              <Bell className="h-5 w-5" />
+            </IconLink>
+            <IconLink href="/messages" label="Messages" count={unread.messages}>
+              <MessageSquare className="h-5 w-5" />
+            </IconLink>
+          </>
         )}
         {user ? (
           <Link href={`/u/${user.username}`} aria-label="Your profile">

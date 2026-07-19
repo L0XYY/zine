@@ -9,6 +9,7 @@ import { VerifiedCheck } from "@/components/ui/CreatorBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { addComment, deleteComment, fetchComments } from "@/lib/data";
+import { notify, toActor } from "@/lib/notifications";
 import { isAdminRole } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -20,10 +21,12 @@ export function CommentsSheet({
   video,
   open,
   onClose,
+  onCountChange,
 }: {
   video: Video;
   open: boolean;
   onClose: () => void;
+  onCountChange?: (delta: number) => void;
 }) {
   const { user } = useAuth();
   const toast = useToast();
@@ -52,12 +55,23 @@ export function CommentsSheet({
     setSending(true);
     const c = await addComment(video.id, body, user);
     setSending(false);
-    if (c) setComments((prev) => [c, ...(prev ?? [])]);
-    else toast("Couldn't post — you may be commenting too fast.", "error");
+    if (c) {
+      setComments((prev) => [c, ...(prev ?? [])]);
+      onCountChange?.(1);
+      notify({
+        recipientId: video.author.id,
+        actor: toActor(user),
+        kind: "comment",
+        videoId: video.id,
+        videoTitle: video.title,
+        preview: body,
+      });
+    } else toast("Couldn't post — you may be commenting too fast.", "error");
   };
 
   const handleDelete = async (id: string) => {
     setComments((prev) => (prev ?? []).filter((c) => c.id !== id));
+    onCountChange?.(-1);
     await deleteComment(id);
     toast("Comment removed", "info");
   };

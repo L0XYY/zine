@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isFollowing, toggleFollow, subscribeInteractions } from "@/lib/interactions";
+import { notify, toActor } from "@/lib/notifications";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
 
@@ -41,6 +42,9 @@ export function FollowButton({
     const now = toggleFollow(targetUserId);
     setFollowing(now);
     toast(now ? `Following @${targetUsername}` : `Unfollowed @${targetUsername}`);
+    if (now) {
+      notify({ recipientId: targetUserId, actor: toActor(user), kind: "follow" });
+    }
   };
 
   return (
